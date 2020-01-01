@@ -1,0 +1,3 @@
+#!/bin/bash
+
+python $DL_UTILS_ROOT/bins/symlinks.py "$@"
