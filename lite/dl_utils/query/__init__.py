@@ -1,1 +1,1 @@
-from dl_utils.query.query import query
+from .query import query

@@ -1,5 +1,5 @@
 import os, yaml, pandas as pd 
-from dl_utils.printer import * 
+from ..printer import * 
 
 # ===================================================================
 # OVERVIEW

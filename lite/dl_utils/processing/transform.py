@@ -1,7 +1,7 @@
 import numpy as np
 from scipy import ndimage, interpolate, optimize
-import blobs, norms
-from dl_utils.hasher import sha1
+from . import blobs, norms
+from ..hasher import sha1
 
 # ======================================================================================
 # COORDINATE SYSTEMS (CREATION + MANAGEMENT)

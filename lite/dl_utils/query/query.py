@@ -1,5 +1,5 @@
 import os, glob
-from dl_utils.printer import * 
+from ..printer import * 
 
 def find_matching_files(query, recursive=True, verbose=True):
     """

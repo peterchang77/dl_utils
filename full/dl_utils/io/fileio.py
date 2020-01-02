@@ -1,6 +1,7 @@
 import os, numpy as np
-from jarvis.io import dicom, hdf5, mvk, mzl
-from dl_utils.printer import * 
+from . import dicom, hdf5
+from .legacy import mvk, mzl
+from ..printer import * 
 
 def load(fname, infos=None, json_safe=False):
     """

@@ -1,1 +1,1 @@
-from dl_utils.db.coredb import CoreDB 
+from .coredb import CoreDB 

@@ -12,11 +12,11 @@ def find_files(root):
     IGNORE = ['pyc', 'swp', 'zip']
 
     files = glob.glob('%s/**/*' % root, recursive=True)
-    files = [f for f in files if f.split('.')[-1] not in IGNORE]
+    files = [f for f in files if f.split('.')[-1] not in IGNORE and not os.path.isdir(f)]
 
     return files
 
-def update_symlinks(src, dst, remove):
+def update_symlinks(src, dst, remove, hard_link):
     """
     Method to create symlinks for *.py from [src] to [dst]
 
@@ -40,6 +40,9 @@ def update_symlinks(src, dst, remove):
     # (2) | REMOVE + UPDATE 
     # =======================================================
 
+    # --- Define soft- vs hard-link
+    LINK_FUNC = os.link if hard_link else os.symlink
+
     src_files = find_files(src) 
     dst_files = [s.replace(src, dst) for s in src_files]
 
@@ -54,7 +57,7 @@ def update_symlinks(src, dst, remove):
         else:
             print('Creating symlink: %s' % dst_file)
             os.makedirs(os.path.dirname(dst_file), exist_ok=True)
-            os.symlink(src=src_file, dst=dst_file)
+            LINK_FUNC(src=src_file, dst=dst_file)
 
 def remove_symlinks(files):
     """
@@ -68,15 +71,16 @@ def remove_symlinks(files):
 if __name__ == '__main__':
 
     description = 'Create symlinks for *.py from [src] to [dst] while preserving directory structure.'
-    usage = 'symlinks [-h] [--remove] src [, dst]'
+    usage = 'symlinks [-h] [--remove] [--hard] src [, dst]'
 
     parser = argparse.ArgumentParser(description=description, usage=usage)
     parser.add_argument('-r', '--remove', action='store_true', default=False)
+    parser.add_argument('-d', '--hard', action='store_true', default=False)
     parser.add_argument('src', metavar='src', type=str, help='source directory (./lite/, etc...)')
     parser.add_argument('dst', metavar='dst', type=str, nargs='?', default=None, help='target directory (./full/, etc...)')
     args = parser.parse_args()
 
-    update_symlinks(args.src, args.dst, args.remove)
+    update_symlinks(args.src, args.dst, args.remove, args.hard)
 
     pass
 

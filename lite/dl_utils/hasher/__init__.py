@@ -1,1 +1,1 @@
-from dl_utils.hasher.hasher import sha1
+from .hasher import sha1
