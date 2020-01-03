@@ -1,1 +1,1 @@
-from .query import query
+from .query import find_matching_files 
