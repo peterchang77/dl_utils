@@ -171,3 +171,34 @@ def load_meta(fname):
             'affine': f.attrs['affine']}
 
     return meta
+
+# ==========================================================
+# LOAD / SAVE FUNCTIONS
+# ==========================================================
+# 
+# The following Python dict is used to register file exts
+# with implemented load / save functions:
+# 
+# ==========================================================
+
+def load_hdf5(fname, **kwargs):
+    """
+    Method to load HDF5 files according to fileio.py API
+
+    """
+    return hdf5.load(fname=fname)
+
+def save_hdf5(fname, data, meta=None, chunks=None, compression='gzip', **kwargs):
+    """
+    Method to save HDF5 files according to fileio.py API
+
+    """
+
+    meta = meta or {}
+    hdf5.save(fname, data=data, meta=meta, chunks=chunks, compression=compression)
+
+
+LOAD_FUNCS = {'hdf5': load_hdf5}
+SAVE_FUNCS = {'hdf5': save_hdf5}
+
+# ==========================================================
