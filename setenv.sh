@@ -21,6 +21,10 @@
 # 
 # ============================================================
 
+# --- (0) Add DL_UTILS_ROOT, PATH
+export DL_UTILS_ROOT=$PWD
+export PATH=$PATH:$DL_UTILS_ROOT/bins
+
 # --- (1) Add current dl_utils libary path
 LIB=${1:-lite}
 echo "Adding to PYTHONPATH: $PWD/$LIB"
