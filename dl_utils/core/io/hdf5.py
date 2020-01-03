@@ -1,6 +1,6 @@
 import os, shutil, h5py
 import numpy as np
-from ..printer import * 
+from ..general import printd
 
 def save(fname, data, meta={}, chunks=None, compression=None):
     """
