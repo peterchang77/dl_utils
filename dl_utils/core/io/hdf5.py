@@ -186,7 +186,7 @@ def load_hdf5(fname, **kwargs):
     Method to load HDF5 files according to fileio.py API
 
     """
-    return hdf5.load(fname=fname)
+    return load(fname=fname)
 
 def save_hdf5(fname, data, meta=None, chunks=None, compression='gzip', **kwargs):
     """
@@ -195,7 +195,7 @@ def save_hdf5(fname, data, meta=None, chunks=None, compression='gzip', **kwargs)
     """
 
     meta = meta or {}
-    hdf5.save(fname, data=data, meta=meta, chunks=chunks, compression=compression)
+    save(fname, data=data, meta=meta, chunks=chunks, compression=compression)
 
 
 LOAD_FUNCS = {'hdf5': load_hdf5}
