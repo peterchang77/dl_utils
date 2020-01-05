@@ -71,7 +71,7 @@ class DB():
         for arg in args:
 
             if type(arg) is dict:
-                args_['config'] = arg
+                args_['configs'] = arg
 
             elif type(arg) is str:
                 ext = arg.split('.')[-1]
@@ -261,6 +261,44 @@ class DB():
 
         return range(splits[splits_curr], splits[splits_curr + 1]), status
 
+    def apply(self, funcs, kwargs, load=None, mask=None):
+        """
+        Method to apply a series of funcs to data
+
+        """
+        dfs = []
+
+        for sid, fnames, header in self.cursor(mask=mask):
+
+            df = pd.DataFrame()
+            for func, kwargs_ in zip(funcs, kwargs):
+
+                # --- Load all fnames if load function is provided
+                if load is not None:
+                    to_load = {v: fnames[v] for v in kwargs_.values() if v in fnames and type(fnames[v]) is str}
+                    for key, fname in to_load.items():
+                        fnames[key] = load(fname)[0]
+
+                fs = {k: fnames[v] for k, v in kwargs_.items() if v in fnames}
+                hs = {k: header[v] for k, v in kwargs_.items() if v in header}
+
+                ds = func(**{**kwargs_, **fs, **hs})
+
+                # --- Make iterable
+                if df.size == 0:
+                    ds = {k: v if hasattr(v, '__iter__') else [v] for k, v in ds.items()}
+
+                # --- Update df
+                keys = sorted(ds.keys())
+                for key in keys:
+                    df[key] = ds[key]
+
+            df.index = [sid] * df.shape[0]
+            df.index.name = 'sid'
+            dfs.append(df)
+
+        return pd.concat(dfs, axis=0)
+
     def update_all(self):
         """
         Method to re-index all files
@@ -284,13 +322,6 @@ class DB():
     def query(self):
         """
         Method to query db for data
-
-        """
-        pass
-
-    def iterate(self, func):
-        """
-        Method to iterate through data and apply provided func
 
         """
         pass
@@ -357,6 +388,7 @@ class DB():
         if csv is not None:
 
             df = self.df_merge(rename=True)
+            os.makedirs(os.path.dirname(csv), exist_ok=True)
             df.to_csv(csv)
 
 # ===============================================
