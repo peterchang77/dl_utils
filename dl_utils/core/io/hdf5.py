@@ -188,7 +188,7 @@ def load_hdf5(fname, **kwargs):
     """
     return load(fname=fname)
 
-def save_hdf5(fname, data, meta=None, chunks=None, compression='gzip', **kwargs):
+def save_hdf5(fname, data, meta=None, chunks=None, compression=None, **kwargs):
     """
     Method to save HDF5 files according to fileio.py API
 

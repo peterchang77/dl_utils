@@ -1,4 +1,4 @@
-import os, yaml, pandas as pd 
+import os, yaml, numpy as np, pandas as pd 
 from .query import find_matching_files
 from ..general import printd, printp
 
@@ -209,7 +209,7 @@ class DB():
     # ITERATE AND UPDATES 
     # ===================================================================
 
-    def cursor(self, query=None, verbose=True):
+    def cursor(self, mask=None, splits_curr=None, splits_total=None, status='Iterating | {:06d}', verbose=True, flush=False):
         """
         Method to create Python generator to iterate through dataset
         
@@ -219,19 +219,47 @@ class DB():
         df = self.df_merge(rename=False) 
         fcols = self.fnames.columns
         hcols = self.header.columns
-
         fsize = fcols.size
+        
+        # --- Apply mask
+        if mask is not None:
+            df = df[mask]
+
+        # --- Create splits
+        if splits_total is not None:
+            r, status = self.create_splits(splits_curr, splits_total, df.shape[0], status)
+            df = df.iloc[r]
 
         for tups in df.itertuples():
 
             if verbose:
                 count += 1
-                printp('Iterating | {:06d}'.format(count), count / df.shape[0])
+                printp(status.format(count), count / df.shape[0], flush=flush)
 
             fnames = {k: t for k, t in zip(fcols, tups[1:1+fsize])}
             header = {k: t for k, t in zip(hcols, tups[1+fsize:])}
 
             yield tups[0], fnames, header
+
+    def create_splits(self, splits_curr, splits_total, rows, status):
+        """
+        Method to identify current split range
+
+        """
+        # --- Read from os.environ if None
+        if splits_curr is None:
+            splits_curr = int(os.environ.get('SPLITS_CURR', 0))
+
+        # --- Create splits
+        splits = np.linspace(0, rows, splits_total + 1)
+        splits = np.round(splits).astype('int')
+
+        # --- Update status message
+        ss = status.split('|')
+        ss[0] = ss[0] + '(split == {}/{}) '.format(splits_curr + 1, splits_total)
+        status = '|'.join(ss)
+
+        return range(splits[splits_curr], splits[splits_curr + 1]), status
 
     def update_all(self):
         """

@@ -126,7 +126,7 @@ def convert_meta_to_json_safe(meta):
         if type(v) is np.ndarray:
             meta[k] = v.tolist()
 
-def save(fname, **kwargs):
+def save(fname, data, **kwargs):
     """
     Method to save a single file in format implied by file extension 
 
@@ -142,7 +142,7 @@ def save(fname, **kwargs):
         printd('ERROR file format not recognized: %s' % file_type)
 
     # --- Save 
-    SAVE_FUNCS[file_type](fname, **kwargs)
+    SAVE_FUNCS[file_type](fname, data, **kwargs)
 
 def save_npz(fname, data, **kwargs):
 
