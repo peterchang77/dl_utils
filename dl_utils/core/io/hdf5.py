@@ -2,7 +2,7 @@ import os, shutil, h5py
 import numpy as np
 from ..general import printd
 
-def save(fname, data, meta={}, chunks=None, compression=None):
+def save(fname, data, meta={}, chunks=None, compression=None, **kwargs):
     """
     Method to save data and affine matrix in HDF5 format
 
@@ -84,7 +84,7 @@ def init_save(fname, data, meta, chunks, compression):
 
     return fname , data, meta, chunks, compression
 
-def load(fname, infos=None):
+def load(fname, infos=None, **kwargs):
     """
     Method to load full array and meta dictionary
 
@@ -186,7 +186,7 @@ def load_hdf5(fname, **kwargs):
     Method to load HDF5 files according to fileio.py API
 
     """
-    return load(fname=fname)
+    return load(fname=fname, **kwargs)
 
 def save_hdf5(fname, data, meta=None, chunks=None, compression=None, **kwargs):
     """
