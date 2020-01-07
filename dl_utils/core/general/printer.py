@@ -59,3 +59,20 @@ def printp(s, progress, pattern='%0.3f', SIZE=20, ljust=80, flush=False):
     pattern = '\r[ %s ] [%s%s%s] ' + pattern + '%% : %s'
     s = pattern % (t, a, c, b, progress * 100, s)
     print(s.ljust(ljust), flush=flush, end=' ')
+
+@verbose
+def printb(s, h='=', ljust=80, flush=False):
+    """
+    Method to print output with timestamp + emphasis bars
+
+    ================================== (* ljust)
+    {STRING...}
+    ================================== (* ljust)
+
+    """
+    kwargs = {'ljust': ljust, 'flush': flush}
+    h = h * ljust
+
+    printd(h, **kwargs)
+    printd(s, **kwargs)
+    printd(h, **kwargs)
