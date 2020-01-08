@@ -1,4 +1,4 @@
-name: gpu-full
+name: cpu-full
 channels:
   - simpleitk
   - anaconda
@@ -198,5 +198,5 @@ dependencies:
     - tensorflow-gpu==2.0.0
     - termcolor==1.1.0
     - wrapt==1.11.2
-prefix: /miniconda/envs/gpu-full
+prefix: /miniconda/envs/cpu-full
 

@@ -21,8 +21,8 @@ yes | conda install h5py
 yes | conda install pyyaml
 
 # Data Science Libraries
-yes | pip install tensorflow-gpu==2.0
-# yes | pip install tensorflow==2.0
+# yes | pip install tensorflow-gpu==2.0
+yes | pip install tensorflow==2.0
 yes | conda install -c anaconda scipy
 yes | conda install -c anaconda pandas
 yes | conda install -c anaconda scikit-image
