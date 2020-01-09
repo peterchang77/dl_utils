@@ -1,4 +1,4 @@
-import os, numpy as np
+import os, json, numpy as np
 from ..general import printd
 
 def parse_ext(fname):
@@ -50,6 +50,7 @@ def load(fname, json_safe=False, **kwargs):
 
     # --- Load
     data, meta = LOAD_FUNCS[file_type](fname, **kwargs)
+    meta = {**{'header': None, 'affine': None, 'unique': None}, **meta}
 
     # --- Convert np.ndarrays to list if needed
     if json_safe:
@@ -117,6 +118,15 @@ def add_axes(data):
 
     return data 
 
+def load_json(fname, **kwargs):
+    """
+    Method to load JSON (meta-only) files
+
+    """
+    unique = json.load(open(fname, 'r'))
+
+    return _, {'unique': unique} 
+
 def convert_meta_to_json_safe(meta):
 
     if 'affine' in meta:
@@ -159,7 +169,8 @@ def save_npz(fname, data, **kwargs):
 
 LOAD_FUNCS = {
     'npy': load_npy,
-    'npz': load_npz}
+    'npz': load_npz,
+    'json': load_json}
 
 SAVE_FUNCS = {
     'npz': save_npz}
