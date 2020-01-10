@@ -261,63 +261,64 @@ class DB():
 
         return range(splits[splits_curr], splits[splits_curr + 1]), status
 
-    def apply(self, funcs, kwargs, load=None, mask=None):
+    def apply(self, funcs, kwargs, load=None, mask=None, replace=False):
         """
-        Method to apply a series of funcs to data
+        Method to apply a series of funcs to entire spreadsheet (or partial defined by mask) 
 
         """
         dfs = []
 
         for sid, fnames, header in self.cursor(mask=mask):
-
-            df = pd.DataFrame()
-            for func, kwargs_ in zip(funcs, kwargs):
-
-                # --- Load all fnames if load function is provided
-                if load is not None:
-                    to_load = {v: fnames[v] for v in kwargs_.values() if v in fnames and type(fnames[v]) is str}
-                    for key, fname in to_load.items():
-                        fnames[key] = load(fname)[0]
-
-                fs = {k: fnames[v] for k, v in kwargs_.items() if v in fnames}
-                hs = {k: header[v] for k, v in kwargs_.items() if v in header}
-
-                ds = func(**{**kwargs_, **fs, **hs})
-
-                # --- Make iterable
-                if df.size == 0:
-                    ds = {k: v if hasattr(v, '__iter__') else [v] for k, v in ds.items()}
-
-                # --- Update df
-                keys = sorted(ds.keys())
-                for key in keys:
-                    df[key] = ds[key]
-
-            df.index = [sid] * df.shape[0]
-            df.index.name = 'sid'
-            dfs.append(df)
+            dfs.append(self.apply_row(sid, funcs, kwargs, load=load, fnames=fnames, header=header, replace=replace))
 
         return pd.concat(dfs, axis=0)
 
-    def update_all(self):
+    def apply_row(self, sid, funcs, kwargs, load=None, fnames=None, header=None, replace=False):
         """
-        Method to re-index all files
-
-        """
-        # --- Query for all matching data
-
-        # --- Iterate through each match with self.update_row()
-
-    def update_row(self, sid, arrs, overwrite=False, **kwargs):
-        """
-        Method to update db row with current arrays
-
-        NOTE: add custom header data by registering methods in HEADER_FUNCTIONS dict
+        Method to apply a series of funcs to single row
 
         """
-        for h in self.HEADERS:
-            if h in self.HEADER_FUNCTIONS:
-                self.HEADER_FUNCTIONS[h](sid, arrs, **kwargs)
+        if fnames is None:
+            fnames = self.fnames[sid]
+
+        if header is None:
+            header = self.header[sid]
+
+        df = pd.DataFrame()
+        for func, kwargs_ in zip(funcs, kwargs):
+
+            # --- Load all fnames if load function is provided
+            if load is not None:
+                to_load = {v: fnames[v] for v in kwargs_.values() if v in fnames and type(fnames[v]) is str}
+                for key, fname in to_load.items():
+                    fnames[key] = load(fname)[0]
+
+            fs = {k: fnames[v] for k, v in kwargs_.items() if v in fnames}
+            hs = {k: header[v] for k, v in kwargs_.items() if v in header}
+
+            ds = func(**{**kwargs_, **fs, **hs})
+
+            # --- Make iterable
+            if df.size == 0:
+                ds = {k: v if hasattr(v, '__iter__') else [v] for k, v in ds.items()}
+
+            # --- Update df
+            keys = sorted(ds.keys())
+            for key in keys:
+                df[key] = ds[key]
+
+        df.index = [sid] * df.shape[0]
+        df.index.name = 'sid'
+
+        # --- In-place replace if df.shape[0] == 1
+        if replace and df.shape[0] == 1:
+            for key, col in df.items():
+                if key in self.fnames:
+                    self.fnames.at[sid, key] = col.values[0]
+                if key in self.header:
+                    self.header.at[sid, key] = col.values[0]
+
+        return df
 
     def query(self):
         """
@@ -330,7 +331,7 @@ class DB():
     # EXTRACT and SERIALIZE 
     # ===================================================================
 
-    def to_json(self, max_rows=None):
+    def to_json(self, prefix='local://', max_rows=None):
         """
         Method to serialize contents of DB to JSON
 
@@ -370,7 +371,7 @@ class DB():
         header = {k: {**v, **extract(k)} for k, v in header.items()} 
 
         # --- Prepend local:// to fnames 
-        convert = lambda d : {k: 'local://%s' % v for k, v in d.items()}
+        convert = lambda d : {k: '%s%s' % (prefix, v) for k, v in d.items()}
         fnames = {k: convert(v) for k, v in fnames.items()}
 
         header = {k: {'header': v} for k, v in header.items()}

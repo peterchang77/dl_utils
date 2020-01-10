@@ -2,7 +2,7 @@ import os, shutil, h5py
 import numpy as np
 from ..general import printd
 
-def save(fname, data, meta={}, chunks=None, compression=None, **kwargs):
+def save(fname, data, meta={}, chunks=None, compression='gzip', **kwargs):
     """
     Method to save data and affine matrix in HDF5 format
 
@@ -12,7 +12,7 @@ def save(fname, data, meta={}, chunks=None, compression=None, **kwargs):
       (np.ndarray) data : a 4D Numpy array
       (dict)       meta : {'affine': ...}
       (tuple)    chunks : (z, y, x, c) shape of chunks; by default 1 x Y x X x C
-      (str) compression : either 'gzip' or 'lzf'; by default no compression
+      (str) compression : either 'gzip' or 'lzf' or None (no compression)
 
     """
     # --- Initialize
@@ -188,7 +188,7 @@ def load_hdf5(fname, **kwargs):
     """
     return load(fname=fname, **kwargs)
 
-def save_hdf5(fname, data, meta=None, chunks=None, compression=None, **kwargs):
+def save_hdf5(fname, data, meta=None, chunks=None, compression='gzip', **kwargs):
     """
     Method to save HDF5 files according to fileio.py API
 

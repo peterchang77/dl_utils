@@ -3,6 +3,23 @@ import numpy as np
 def init(funcs_def='mr_train', **kwargs):
     """
     Method to to prepare **kwargs for db.apply(...)
+    
+    :params
+
+      (str)  funcs_def = 'mr_train', 'ct_train', ... OR
+
+      (list) funcs_def = [{
+
+        'func': 'coord', 'stats', ... OR lambda function,
+        'kwargs': {
+            kwargs_0: colkey_0,
+            kwargs_1: colkey_1,
+            ...},
+
+        }]
+
+        kwargs_0 ==> named argument of lambda function
+        colkey_0 ==> column name to feed into kwargs
 
     """
     if type(funcs_def) is str:
@@ -17,7 +34,7 @@ def init(funcs_def='mr_train', **kwargs):
     return {
         'mask': kwargs.get('mask', None),
         'load': kwargs.get('load', None),
-        'funcs': [FUNCS[d['func']] for d in funcs_def],
+        'funcs': [FUNCS.get(d['func'], d['func']) for d in funcs_def],
         'kwargs': [d['kwargs'] for d in funcs_def]}
 
 def update(funcs):
@@ -36,27 +53,34 @@ def calculate_coord(lbl):
 
     return {'coord': np.arange(z) / (z - 1)}
 
-def calculate_stats(dat):
+def calculate_stats(dat, axis=(0, 1, 2)):
     """
     Method to calculate image statistics across channels: mu, sd
 
     """
-    mu = dat.mean(axis=(0, 1, 2))
-    sd = dat.std(axis=(0, 1, 2))
+    mu = dat.mean(axis=axis)
+    sd = dat.std(axis=axis)
 
     mu = {'mu-{:02d}'.format(c): m for c, m in enumerate(mu)} 
     sd = {'sd-{:02d}'.format(c): s for c, s in enumerate(sd)} 
 
     return {**mu, **sd}
 
-def calculate_label(lbl, classes):
+def calculate_label(lbl, classes, axis=(1, 2, 3)):
     """
     Method to calculate if label class is present 
 
     """
-    is_present = lambda c : np.sum(lbl == c, axis=(1, 2, 3)) > 0
+    is_present = lambda c : np.sum(lbl == c, axis=axis) > 0
 
     return {'lbl-{:02d}'.format(c): is_present(c) for c in range(classes + 1)}
+
+def calculate_slices(lbl):
+    """
+    Method to calculate total number of slices in volume
+
+    """
+    return {'slices': lbl.shape[0]}
 
 # ============================================================
 # REGISTERED FUNCTIONS
@@ -65,7 +89,8 @@ def calculate_label(lbl, classes):
 FUNCS = {
     'coord': calculate_coord,
     'stats': calculate_stats,
-    'label': calculate_label}
+    'label': calculate_label,
+    'slices': calculate_slices}
 
 # ============================================================
 # DEFAULT FUNCS_DEF

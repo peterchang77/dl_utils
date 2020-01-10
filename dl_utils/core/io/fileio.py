@@ -36,16 +36,18 @@ def load(fname, json_safe=False, **kwargs):
       (JSON obj) meta: metadata object (varies by file format)
 
     """
+    verbose = kwargs.get('verbose', True)
+
     # --- Check if file exists
     if not os.path.exists(fname):
-        printd('ERROR file does not exist: %s' % fname)
+        printd('ERROR file does not exist: %s' % fname, verbose=verbose)
         return None, None
 
     # --- Check file ext
     file_type = parse_ext(fname)
 
     if file_type not in LOAD_FUNCS:
-        printd('ERROR file format not recognized: %s' % file_type)
+        printd('ERROR file format not recognized: %s' % file_type, verbose=verbose)
         return None, None
 
     # --- Load
