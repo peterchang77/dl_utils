@@ -279,10 +279,12 @@ class DB():
 
         """
         if fnames is None:
-            fnames = self.fnames[sid]
+            sid = sid if sid in self.fnames.index else int(sid)
+            fnames = self.fnames.loc[sid]
 
         if header is None:
-            header = self.header[sid]
+            sid = sid if sid in self.header.index else int(sid)
+            header = self.header.loc[sid] 
 
         df = pd.DataFrame()
         for func, kwargs_ in zip(funcs, kwargs):
@@ -292,6 +294,9 @@ class DB():
                 to_load = {v: fnames[v] for v in kwargs_.values() if v in fnames and type(fnames[v]) is str}
                 for key, fname in to_load.items():
                     fnames[key] = load(fname)[0]
+
+            # --- Ensure all kwargs values are hashable
+            kwargs_ = {k: tuple(v) if type(v) is list else v for k, v in kwargs_.items()}
 
             fs = {k: fnames[v] for k, v in kwargs_.items() if v in fnames}
             hs = {k: header[v] for k, v in kwargs_.items() if v in header}

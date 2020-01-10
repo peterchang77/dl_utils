@@ -58,8 +58,8 @@ def calculate_stats(dat, axis=(0, 1, 2)):
     Method to calculate image statistics across channels: mu, sd
 
     """
-    mu = dat.mean(axis=axis)
-    sd = dat.std(axis=axis)
+    mu = dat.mean(axis=tuple(axis))
+    sd = dat.std(axis=tuple(axis))
 
     mu = {'mu-{:02d}'.format(c): m for c, m in enumerate(mu)} 
     sd = {'sd-{:02d}'.format(c): s for c, s in enumerate(sd)} 
@@ -71,7 +71,7 @@ def calculate_label(lbl, classes, axis=(1, 2, 3)):
     Method to calculate if label class is present 
 
     """
-    is_present = lambda c : np.sum(lbl == c, axis=axis) > 0
+    is_present = lambda c : np.sum(lbl == c, axis=tuple(axis)) > 0
 
     return {'lbl-{:02d}'.format(c): is_present(c) for c in range(classes + 1)}
 
