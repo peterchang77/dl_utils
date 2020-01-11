@@ -28,7 +28,7 @@ Note: if you are planning to use other `dl_*` packages, it is recommended to kee
 
 ## Dependencies
 
-The **recommended** approach is to perform all code development within Docker containers. A series of prebuilt Docker images are configured with all the necessary Python dependencies as well as any OS configurations. They can downloaded using any one of the following commands:
+The **recommended** approach is to perform all code development within Docker containers. A series of prebuilt Docker images are configured with all the necessary Python dependencies as well as any OS configurations. They can be downloaded using any one of the following commands:
 
 ```bash
 $ sudo docker pull peterchang77/gpu-full:latest
