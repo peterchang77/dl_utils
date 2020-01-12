@@ -1,4 +1,4 @@
-import os, yaml, numpy as np, pandas as pd 
+import os, yaml, numpy as np, pandas as pd, tarfile
 from .query import find_matching_files
 from ..general import printd, printp
 
@@ -15,13 +15,6 @@ from ..general import printd, printp
 # 
 # The underlying indexed data is stored as CSV files. 
 # 
-# Supported functionality includes:
-# 
-#   * query()
-#   * iterate()
-#   * to_json()
-#   * to_csv()
-# 
 # ===================================================================
 # 
 # [ FILE-SYS ] \
@@ -34,24 +27,21 @@ class DB():
 
     def __init__(self, *args, **kwargs):
         """
-        Method to initialize CoreDB
+        Method to initialize DB() object
 
-        Configuration settings can be found in:
+        The following initialization sources can be used:
 
-          (1) configs dictionary
-          (2) YML file
-          (3) CSV file
+          (1) query (dictionary + store)
+          (2) CSV file (with existing data)
+          (3) YML file
+          (4) shell environment variables
 
         """
         # --- Parse args
-        kwargs = self.parse_args(*args, **kwargs)
+        self.parse_args(*args, **kwargs)
 
-        # --- Save attributes
-        self.configs = self.init_configs(**kwargs) 
-        self.HEADERS = self.configs['headers'] 
-        
         # --- Load CSV file
-        self.load_csv(self.configs['csv_file'])
+        self.load_csv()
 
         # --- Refresh
         self.refresh()
@@ -62,57 +52,89 @@ class DB():
 
         """
         DEFAULTS = {
-            'configs': None,
-            'yml_file': None,
-            'csv_file': None}
+            'store': '',
+            'files': {'csv': None, 'yml': None},
+            'query': {},
+            'funcs': []}
 
-        # --- Convert args to args_ dict 
+        # --- Extract values from args 
+        files = {}
         args_ = {}
+
         for arg in args:
+            if type(arg) is str:
+                if os.path.isdir(arg):
+                    args_['store'] = arg
+                else:
+                    ext = arg.split('.')[-1]
+                    if ext in ['yml']:
+                        files['yml'] = arg
+                    if ext in ['csv', 'gz']:
+                        files['csv'] = arg
 
-            if type(arg) is dict:
-                args_['configs'] = arg
+            elif type(arg) is dict:
+                args_['query'] = arg
 
-            elif type(arg) is str:
-                ext = arg.split('.')[-1]
+            elif type(arg) is list:
+                args_['funcs'] = arg
 
-                if ext in ['yml']:
-                    args_['yml_file'] = arg
+        # --- Extract values from ENV 
+        environ = {}
+        for key in ['store']:
+            ENV = 'DS_{}'.format(key.upper())
+            if ENV in os.environ:
+                environ[key] = os.environ[ENV]
 
-                if ext in ['csv', 'gz']:
-                    args_['csv_file'] = arg
+        # --- Initialize default values
+        configs = {**DEFAULTS, **args_, **kwargs, **environ} 
+        configs['files'] = {**DEFAULTS['files'], **files, **kwargs.get('files', {})}
 
-        return {**DEFAULTS, **args_, **kwargs} 
+        # --- Initialize files
+        if configs['store'] != '':
+            configs['files']['csv'] = configs['files']['csv'] or '{}/csvs/summary.csv.gz'.format(configs['store'])
+            configs['files']['yml'] = configs['files']['yml'] or '{}/ymls/summary.yml'.format(configs['store'])
 
-    def init_configs(self, configs, yml_file, csv_file):
+        # --- Initialize YML if present
+        if configs['files']['yml'] is not None:
+            if os.path.exists(configs['files']['yml']):
+                configs = {**configs, 
+                        **yaml.load(open(configs['files']['yml']), Loader=yaml.FullLoader)}
+
+        # --- Save
+        self.store = configs['store']
+        self.files = configs['files']
+        self.query = configs['query']
+        self.funcs = configs['funcs']
+
+        # --- Attributes to serialize in self.to_yml(...) 
+        self.ATTRS = ['store', 'files', 'query', 'funcs']
+
+    def set_store(self, store, update_fnames=True):
         """
-        Method initialize configs
+        Method to set store and remove prefix from fnames
 
         """
-        DEFAULTS = {
-            'query': None,
-            'headers': [],
-            'csv_file': None,
-            'mongo': None}
+        if store[-1] == '/':
+            store = store[:-1]
 
-        configs = configs or {}
+        self.store = store
 
-        yml = {} if yml_file is None else yaml.load(open(yml_file), Loader=yaml.FullLoader)
-        csv = {} if csv_file is None else {'csv_file': csv_file}
-
-        return {**DEFAULTS, **configs, **yml, **csv} 
+        for col in self.fnames:
+            self.fnames[col] = self.fnames[col].apply(lambda x : x.replace(store, ''))
 
     # ===================================================================
     # CSV | LOAD, SAVE and PREPARE
     # ===================================================================
 
-    def load_csv(self, csv_file):
+    def load_csv(self, fname=None):
         """
         Method to load CSV file
 
         """
-        if os.path.exists(csv_file or ''):
-            df = pd.read_csv(csv_file, index_col='sid')
+        fname = self.files['csv'] or fname or ''
+
+        if os.path.exists(fname):
+            df = pd.read_csv(fname, index_col='sid')
         else: 
             df = pd.DataFrame()
             df.index.name = 'sid'
@@ -156,7 +178,7 @@ class DB():
 
     def refresh(self, refresh_rows=False, refresh_cols=True, **kwargs):
         """
-        Method to refresh CoreDB 
+        Method to refresh DB() object 
 
           (1) Refresh fnames (rows)
           (2) Refresh header (cols) 
@@ -167,7 +189,7 @@ class DB():
             self.refresh_rows()
 
         # --- Refresh cols
-        if self.fnames.shape[0] != self.header.shape[0] or refresh_cols:
+        if refresh_rows or refresh_cols:
             self.refresh_cols()
 
     def refresh_rows(self, matches=None):
@@ -175,12 +197,14 @@ class DB():
         Method to refresh rows by updating with results of query
 
         """
-        if self.configs['query'] is None and matches is None:
+        if self.query is None and matches is None:
             return
 
         # --- Query for matches
         if matches is None:
-            matches, _ = find_matching_files(self.configs['query'], verbose=False)
+            query = self.query.copy()
+            query['root'] = self.store
+            matches, _ = find_matching_files(query, verbose=False)
 
         self.fnames = pd.DataFrame.from_dict(matches, orient='index')
 
@@ -196,14 +220,11 @@ class DB():
         Method to refresh cols
 
         """
-        # --- Update headers 
-        for k in self.HEADERS:
-            if k not in self.header:
-                self.header = None
-
         # --- Find rows with a None column entry
 
         # --- Update rows
+
+        pass
 
     # ===================================================================
     # ITERATE AND UPDATES 
@@ -236,7 +257,7 @@ class DB():
                 count += 1
                 printp(status.format(count), count / df.shape[0], flush=flush)
 
-            fnames = {k: t for k, t in zip(fcols, tups[1:1+fsize])}
+            fnames = {k: '{}{}'.format(self.store, t) for k, t in zip(fcols, tups[1:1+fsize])}
             header = {k: t for k, t in zip(hcols, tups[1+fsize:])}
 
             yield tups[0], fnames, header
@@ -384,20 +405,60 @@ class DB():
 
         return {k: {**fnames[k], **header[k]} for k in fnames}
 
-    def to_csv(self, csv=None):
+    def to_dict(self):
+        """
+        Method to create dictionary of metadata
+
+        """
+        return {attr: getattr(self, attr) for attr in self.ATTRS}
+
+    def to_yml(self, fname=None, to_csv=True):
+        """
+        Method to serialize metadata of DB to YML
+
+        """
+        fname = fname or self.files['yml']
+
+        if fname is not None:
+            yaml.dump(self.to_dict(), open(fname, 'r'))
+
+        if to_csv:
+            self.to_csv()
+
+    def to_csv(self, fname=None):
         """
         Method to serialize contents of DB to CSV
 
         """
-        csv = csv or self.configs['csv_file']
+        fname = fname or self.files['csv']
 
-        if csv is not None:
+        if fname is not None:
 
             df = self.df_merge(rename=True)
-            os.makedirs(os.path.dirname(csv), exist_ok=True)
-            df.to_csv(csv)
+            os.makedirs(os.path.dirname(fname), exist_ok=True)
+            df.to_csv(fname)
 
-# ===============================================
-# db = DB(yml_file='./configs.yml')
-# db.to_csv()
-# ===============================================
+    def compress(self, cols, mask=None, fname='./data.tar.gz'):
+        """
+        Method to create *.tar.gz archive of the specified column(s)
+
+        """
+        # --- Filter to ensure all provided columns exist as fnames
+        for col in cols:
+            assert col in self.fnames
+
+        with tarfile.open(fname, 'w:gz') as t:
+            for sid, fnames, header in self.cursor(mask=mask, status='Compressing | {:06d}'):
+                for col in cols:
+                    if os.path.exists(fnames[col]):
+                        t.add(fnames[col], arcname=fnames[col].replace(self.store, ''))
+    
+    def decompress(self, tar, store=None):
+        """
+        Method to decompress *.tar.gz archive (and sort into appropriate folders)
+
+        """
+        store = store or self.store or '.'
+
+        with tarfile.open(tar, 'r:gz') as t:
+            t.extractall(path=store)
