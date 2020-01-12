@@ -276,6 +276,21 @@ class DB():
         pass
 
     # ===================================================================
+    # FNAMES FUNCTIONS 
+    # ===================================================================
+
+    def exists(self, cols=None):
+        """
+        Method to check if fnames exists
+
+        """
+        cols = cols or self.fnames.columns
+
+        for col in cols:
+            found = sum(self.fnames[col].apply(lambda x : os.path.exists(self.paths['data'] + x)))
+            printd('COLUMN: {} | {:06d} / {:06d} exists'.format(col, found, self.fnames[col].shape[0]))
+
+    # ===================================================================
     # ITERATE AND UPDATES 
     # ===================================================================
 

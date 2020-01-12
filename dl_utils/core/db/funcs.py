@@ -44,12 +44,12 @@ def update(funcs):
     """
     FUNCS.update(funcs)
 
-def calculate_coord(lbl):
+def calculate_coord(arr):
     """
     Method to calculate normalized coord positions
 
     """
-    z = lbl.shape[0]
+    z = arr.shape[0]
 
     return {'coord': np.arange(z) / (z - 1)}
 
@@ -66,21 +66,21 @@ def calculate_stats(dat, axis=(0, 1, 2)):
 
     return {**mu, **sd}
 
-def calculate_label(lbl, classes, axis=(1, 2, 3)):
+def calculate_label(arr, classes, axis=(1, 2, 3)):
     """
     Method to calculate if label class is present 
 
     """
-    is_present = lambda c : np.sum(lbl == c, axis=tuple(axis)) > 0
+    is_present = lambda c : np.sum(arr == c, axis=tuple(axis)) > 0
 
     return {'lbl-{:02d}'.format(c): is_present(c) for c in range(classes + 1)}
 
-def calculate_slices(lbl):
+def calculate_slices(arr):
     """
     Method to calculate total number of slices in volume
 
     """
-    return {'slices': lbl.shape[0]}
+    return {'slices': arr.shape[0]}
 
 # ============================================================
 # REGISTERED FUNCTIONS
@@ -107,13 +107,13 @@ def get_default_funcs_def(func_def, **kwargs):
         return [{
 
             'func': 'coord',
-            'kwargs': {'lbl': mapping['lbl']}}, {
+            'kwargs': {'arr': mapping['lbl']}}, {
 
             'func': 'stats',
-            'kwargs': {'dat': mapping['dat']}}, {
+            'kwargs': {'arr': mapping['dat']}}, {
 
             'func': 'label',
-            'kwargs': {'lbl': mapping['lbl'], 'classes': classes}
+            'kwargs': {'arr': mapping['lbl'], 'classes': classes}
 
         }]
 
@@ -122,10 +122,10 @@ def get_default_funcs_def(func_def, **kwargs):
         return [{
 
             'func': 'coord',
-            'kwargs': {'lbl': mapping['lbl']}}, {
+            'kwargs': {'arr': mapping['lbl']}}, {
 
             'func': 'label',
-            'kwargs': {'lbl': mapping['lbl'], 'classes': classes}
+            'kwargs': {'arr': mapping['lbl'], 'classes': classes}
 
         }]
 
