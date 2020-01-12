@@ -18,17 +18,16 @@ The query dictionary contains a series of key-value pairs where:
 * key ==> name of table column to populate
 * val ==> glob.glob(...) expression that can be used to localize matching files  
 
-The query dictionary is used in conjunction with a `store` location that represents the directory root where a particular dataset is stored. 
-
-Consider the following example query dictionary:
+All queries are performed relative to query['root']. Consider the following example query dictionary:
 
 ```python
 query = {
+  'root': '/data/raw/root',
   'dat': 'dat.hdf5', 
   'lbl': 'lbl.hdf5' }
 ```
 
-In this example, all rows of column `dat` will be populated with the results of `glob.glob('{}/**/{}'.format(store, 'dat.hdf5'))`, while rows of column `lbl` will be populated with the results of `glob.glob('{}/**/{}'.format(store, 'lbl.hdf5'))`.
+In this example, all rows of column `dat` will be populated with the results of `glob.glob('{}/**/{}'.format(query['root'], 'dat.hdf5'))`, while rows of column `lbl` will be populated with the results of `glob.glob('{}/**/{}'.format(query['root'], 'lbl.hdf5'))`.
 
 **Usage**
 
@@ -38,10 +37,10 @@ db = DB(query)
 print(db.fnames)
 
 dat                             lbl
-[store]/(sid_00)/dat.hdf5       [store]/(sid_00)/lbl.hdf5
-[store]/(sid_01)/dat.hdf5       [store]/(sid_01)/lbl.hdf5
-[store]/(sid_02)/dat.hdf5       [store]/(sid_02)/lbl.hdf5
-[store]/(sid_03)/dat.hdf5       [store]/(sid_03)/lbl.hdf5
+[root]/(sid_00)/dat.hdf5        [root]/(sid_00)/lbl.hdf5
+[root]/(sid_01)/dat.hdf5        [root]/(sid_01)/lbl.hdf5
+[root]/(sid_02)/dat.hdf5        [root]/(sid_02)/lbl.hdf5
+[root]/(sid_03)/dat.hdf5        [root]/(sid_03)/lbl.hdf5
 ...                             ...
 ```
 
@@ -66,7 +65,9 @@ Structure of a `*.yml` file:
 ```
 # --- Default
 
-store: ...
+paths:
+    data: ...
+    code: ...
 
 files:
     csv: ...

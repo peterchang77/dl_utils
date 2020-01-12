@@ -14,22 +14,58 @@ class TestDB(unittest.TestCase):
 
         """
         # --- Create from query dictionary
-        query = {'dat': 'dat.hdf5', 'bet': 'bet.hdf5'}
-        store = '../data/hdfs'
-        self.db = DB(store, query)
+        query = {
+            'root': '../data', 
+            'dat': 'dat.hdf5', 
+            'bet': 'bet.hdf5'}
+
+        self.db = DB(query)
 
     def test_csv(self):
-        # --- Create from CSV file
-        pass
+
+        # --- Create CSV file
+        self.db.set_paths({'code': '.'})
+        self.db.to_csv()
+
+        # --- Reload from CSV
+        fname = self.db.get_files()['csv']
+        db = DB(fname)
+
+        self.assertTrue((db.fnames == self.db.fnames).all().all())
+        self.assertTrue((db.header == self.db.header).all().all())
+
+        # --- Remove
+        for key, fname in self.db.get_files().items():
+            if os.path.exists(fname):
+                os.remove(fname)
+                shutil.rmtree(os.path.dirname(fname))
 
     def test_yml(self):
-        # --- Create from YML file
-        pass
+
+        # --- Create YML file
+        self.db.set_paths({'code': '.'})
+        self.db.to_yml()
+
+        # --- Reload from YML 
+        fname = self.db.get_files()['yml']
+        db = DB(fname)
+
+        self.assertTrue((db.fnames == self.db.fnames).all().all())
+        self.assertTrue((db.header == self.db.header).all().all())
+
+        for attr in db.ATTRS:
+            self.assertTrue(getattr(db, attr) == getattr(self.db, attr))
+
+        # --- Remove
+        for key, fname in self.db.get_files().items():
+            if os.path.exists(fname):
+                os.remove(fname)
+                shutil.rmtree(os.path.dirname(fname))
 
     def test_compress(self):
 
-        # --- Set store so that relative paths are archived
-        self.db.set_store('..')
+        # --- Set paths['data'] so that relative paths are archived
+        self.db.set_paths('..')
 
         # --- Compress to current directory
         fname = './data.tar.gz'
@@ -37,7 +73,7 @@ class TestDB(unittest.TestCase):
         self.assertTrue(os.path.exists(fname))
 
         # --- Decompress
-        self.db.decompress(fname, store='.')
+        self.db.decompress(fname, path='.')
         self.assertTrue(os.path.exists('./data/hdfs'))
 
         # --- Remove

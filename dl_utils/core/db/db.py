@@ -31,7 +31,7 @@ class DB():
 
         The following initialization sources can be used:
 
-          (1) query (dictionary + store)
+          (1) query dictionary 
           (2) CSV file (with existing data)
           (3) YML file
           (4) shell environment variables
@@ -40,7 +40,8 @@ class DB():
         # --- Parse args
         self.parse_args(*args, **kwargs)
 
-        # --- Load CSV file
+        # --- Load YML and CSV files
+        self.load_yml()
         self.load_csv()
 
         # --- Refresh
@@ -52,19 +53,21 @@ class DB():
 
         """
         DEFAULTS = {
-            'store': '',
+            'paths': {'data': '', 'code': ''},
             'files': {'csv': None, 'yml': None},
             'query': {},
             'funcs': []}
 
         # --- Extract values from args 
         files = {}
+        paths = {}
         args_ = {}
 
         for arg in args:
             if type(arg) is str:
                 if os.path.isdir(arg):
-                    args_['store'] = arg
+                    paths['data'] = arg
+                    paths['code'] = arg
                 else:
                     ext = arg.split('.')[-1]
                     if ext in ['yml']:
@@ -80,50 +83,97 @@ class DB():
 
         # --- Extract values from ENV 
         environ = {}
-        for key in ['store']:
-            ENV = 'DS_{}'.format(key.upper())
+        for key in ['data', 'code']:
+            ENV = 'DL_PATHS_{}'.format(key.upper())
             if ENV in os.environ:
                 environ[key] = os.environ[ENV]
 
         # --- Initialize default values
-        configs = {**DEFAULTS, **args_, **kwargs, **environ} 
+        configs = {**DEFAULTS, **args_, **kwargs} 
+
+        if 'root' in configs['query']:
+            paths['data'] = configs['query'].pop('root')
+
+        # --- Initialize default paths and files
+        configs['paths'] = {**DEFAULTS['paths'], **paths, **kwargs.get('paths', {}), **environ}
         configs['files'] = {**DEFAULTS['files'], **files, **kwargs.get('files', {})}
 
-        # --- Initialize files
-        if configs['store'] != '':
-            configs['files']['csv'] = configs['files']['csv'] or '{}/csvs/summary.csv.gz'.format(configs['store'])
-            configs['files']['yml'] = configs['files']['yml'] or '{}/ymls/summary.yml'.format(configs['store'])
-
-        # --- Initialize YML if present
-        if configs['files']['yml'] is not None:
-            if os.path.exists(configs['files']['yml']):
-                configs = {**configs, 
-                        **yaml.load(open(configs['files']['yml']), Loader=yaml.FullLoader)}
+        # --- Attributes to serialize in self.to_yml(...) 
+        self.ATTRS = ['paths', 'files', 'query', 'funcs']
 
         # --- Save
-        self.store = configs['store']
-        self.files = configs['files']
-        self.query = configs['query']
-        self.funcs = configs['funcs']
+        for attr in self.ATTRS:
+            setattr(self, attr, configs[attr])
 
-        # --- Attributes to serialize in self.to_yml(...) 
-        self.ATTRS = ['store', 'files', 'query', 'funcs']
+        # --- Set default file locations
+        self.set_files()
 
-    def set_store(self, store, update_fnames=True):
+    def set_files(self, files=None):
         """
-        Method to set store and remove prefix from fnames
+        Method to set self.files
+
+        :params
+
+          (dict) files : {'csv': ... or None, 'yml': ... or None}
 
         """
-        if store[-1] == '/':
-            store = store[:-1]
+        files = {**(files or {}), **{'csv': None, 'yml': None}} 
 
-        self.store = store
+        if self.paths['code'] != '':
+            self.files['csv'] = files['csv'] or self.files['csv'] or '/csvs/db.csv.gz'
+            self.files['yml'] = files['yml'] or self.files['yml'] or '/ymls/db.yml'
 
-        for col in self.fnames:
-            self.fnames[col] = self.fnames[col].apply(lambda x : x.replace(store, ''))
+    def set_paths(self, paths, update_fnames=True):
+        """
+        Method to set self.paths and remove prefix from fnames
+
+        """
+        assert type(paths) in [str, dict]
+
+        if type(paths) is str:
+            paths = {'data': paths}
+
+        for key, p in paths.items():
+            if p[-1] == '/':
+                paths[key] = paths[key][:-1]
+
+        self.paths.update(paths)
+
+        if 'data' in paths and update_fnames:
+            for col in self.fnames:
+                self.fnames[col] = self.fnames[col].apply(lambda x : x.replace(paths['data'], ''))
+
+        if 'code' in paths:
+            self.set_files()
+
+    def get_files(self):
+        """
+        Method to get full file paths
+
+        """
+        return {k: '{}{}'.format(self.paths['code'], v) if v is not None else None 
+            for k, v in self.files.items()}
 
     # ===================================================================
-    # CSV | LOAD, SAVE and PREPARE
+    # YML | LOAD
+    # ===================================================================
+
+    def load_yml(self, fname=None):
+        """
+        Method to load YML file
+
+        """
+        fname = fname or self.get_files()['yml'] or ''
+
+        if os.path.exists(fname):
+            with open(fname, 'r') as y:
+                configs =  yaml.load(y, Loader=yaml.FullLoader)
+
+            for attr in self.ATTRS:
+                setattr(self, attr, configs[attr])
+
+    # ===================================================================
+    # CSV | LOAD and PREPARE
     # ===================================================================
 
     def load_csv(self, fname=None):
@@ -131,7 +181,7 @@ class DB():
         Method to load CSV file
 
         """
-        fname = self.files['csv'] or fname or ''
+        fname = fname or self.get_files()['csv'] or ''
 
         if os.path.exists(fname):
             df = pd.read_csv(fname, index_col='sid')
@@ -203,7 +253,7 @@ class DB():
         # --- Query for matches
         if matches is None:
             query = self.query.copy()
-            query['root'] = self.store
+            query['root'] = self.paths['data']
             matches, _ = find_matching_files(query, verbose=False)
 
         self.fnames = pd.DataFrame.from_dict(matches, orient='index')
@@ -257,7 +307,7 @@ class DB():
                 count += 1
                 printp(status.format(count), count / df.shape[0], flush=flush)
 
-            fnames = {k: '{}{}'.format(self.store, t) for k, t in zip(fcols, tups[1:1+fsize])}
+            fnames = {k: '{}{}'.format(self.paths['data'], t) for k, t in zip(fcols, tups[1:1+fsize])}
             header = {k: t for k, t in zip(hcols, tups[1+fsize:])}
 
             yield tups[0], fnames, header
@@ -417,10 +467,12 @@ class DB():
         Method to serialize metadata of DB to YML
 
         """
-        fname = fname or self.files['yml']
+        fname = fname or self.get_files()['yml']
 
         if fname is not None:
-            yaml.dump(self.to_dict(), open(fname, 'r'))
+            os.makedirs(os.path.dirname(fname), exist_ok=True)
+            with open(fname, 'w') as y:
+                yaml.dump(self.to_dict(), y)
 
         if to_csv:
             self.to_csv()
@@ -430,7 +482,7 @@ class DB():
         Method to serialize contents of DB to CSV
 
         """
-        fname = fname or self.files['csv']
+        fname = fname or self.get_files()['csv']
 
         if fname is not None:
 
@@ -451,14 +503,14 @@ class DB():
             for sid, fnames, header in self.cursor(mask=mask, status='Compressing | {:06d}'):
                 for col in cols:
                     if os.path.exists(fnames[col]):
-                        t.add(fnames[col], arcname=fnames[col].replace(self.store, ''))
+                        t.add(fnames[col], arcname=fnames[col].replace(self.paths['data'], ''))
     
-    def decompress(self, tar, store=None):
+    def decompress(self, tar, path=None):
         """
         Method to decompress *.tar.gz archive (and sort into appropriate folders)
 
         """
-        store = store or self.store or '.'
+        path = path or self.paths['data'] or '.'
 
         with tarfile.open(tar, 'r:gz') as t:
-            t.extractall(path=store)
+            t.extractall(path=path)
