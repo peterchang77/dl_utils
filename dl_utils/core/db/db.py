@@ -105,8 +105,30 @@ class DB():
         for attr in self.ATTRS:
             setattr(self, attr, configs[attr])
 
-        # --- Set default file locations
-        self.set_files()
+        # --- Set default paths and files locations
+        self.set_paths(update_fnames=False)
+
+    def set_paths(self, paths=None, update_fnames=True):
+        """
+        Method to set self.paths and remove prefix from fnames
+
+        """
+        paths = paths or {}
+        assert type(paths) in [str, dict]
+
+        if type(paths) is str:
+            paths = {'data': paths}
+
+        paths = {**self.paths, **paths} 
+        paths = {k: os.path.abspath(p) if p != '' else '' for k, p in paths.items()}
+        self.paths = paths
+
+        if 'data' in paths and update_fnames:
+            for col in self.fnames:
+                self.fnames[col] = self.fnames[col].apply(lambda x : x.replace(paths['data'], ''))
+
+        if 'code' in paths:
+            self.set_files()
 
     def set_files(self, files=None):
         """
@@ -117,34 +139,11 @@ class DB():
           (dict) files : {'csv': ... or None, 'yml': ... or None}
 
         """
-        files = {**(files or {}), **{'csv': None, 'yml': None}} 
+        files = {**self.files, **(files or {})} 
 
         if self.paths['code'] != '':
-            self.files['csv'] = files['csv'] or self.files['csv'] or '/csvs/db.csv.gz'
-            self.files['yml'] = files['yml'] or self.files['yml'] or '/ymls/db.yml'
-
-    def set_paths(self, paths, update_fnames=True):
-        """
-        Method to set self.paths and remove prefix from fnames
-
-        """
-        assert type(paths) in [str, dict]
-
-        if type(paths) is str:
-            paths = {'data': paths}
-
-        for key, p in paths.items():
-            if p[-1] == '/':
-                paths[key] = paths[key][:-1]
-
-        self.paths.update(paths)
-
-        if 'data' in paths and update_fnames:
-            for col in self.fnames:
-                self.fnames[col] = self.fnames[col].apply(lambda x : x.replace(paths['data'], ''))
-
-        if 'code' in paths:
-            self.set_files()
+            self.files['csv'] = files['csv'] or '/csvs/db.csv.gz'
+            self.files['yml'] = files['yml'] or '/ymls/db.yml'
 
     def get_files(self):
         """
@@ -247,7 +246,7 @@ class DB():
         Method to refresh rows by updating with results of query
 
         """
-        if self.query is None and matches is None:
+        if self.query is {} and matches is None:
             return
 
         # --- Query for matches
@@ -439,16 +438,17 @@ class DB():
         }
 
         """
+        # --- Prepare fnames
+        rename = lambda x : '{}{}{}'.format(prefix, self.paths['data'], x)
+        for col in self.fnames:
+            self.fnames[col] = self.fnames[col].apply(rename)
+
         header = self.header.to_dict(orient='index')
         fnames = self.fnames.to_dict(orient='index')
 
         # --- Extract sid, fname
         extract = lambda k : {'sid': k, 'fname': fnames[k].get('dat', None)}
         header = {k: {**v, **extract(k)} for k, v in header.items()} 
-
-        # --- Prepend local:// to fnames 
-        convert = lambda d : {k: '%s%s' % (prefix, v) for k, v in d.items()}
-        fnames = {k: convert(v) for k, v in fnames.items()}
 
         header = {k: {'header': v} for k, v in header.items()}
         fnames = {k: {'fnames': v} for k, v in fnames.items()}

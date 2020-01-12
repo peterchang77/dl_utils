@@ -17,6 +17,9 @@ def find_matching_files(query, recursive=True, verbose=True):
     q = query.pop(keys[0])
     ms = glob.glob('%s/**/%s' % (root, q), recursive=recursive)
 
+    # --- Prepare remaining query dict
+    query = {k: os.path.basename(v) for k, v in query.items()}
+
     for n, m in enumerate(ms):
 
         printp('Finding matches...', (n + 1) / len(ms), verbose=verbose)
@@ -41,8 +44,9 @@ def find_matching_files(query, recursive=True, verbose=True):
                 e = False
 
         sid = os.path.basename(b)
+        d = {k: v.replace(root, '') for k, v in d.items()} 
         if e:
-            matches[sid] = d
+            matches[sid] = d 
         else:
             missing[sid] = d 
 

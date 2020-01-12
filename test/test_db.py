@@ -15,16 +15,16 @@ class TestDB(unittest.TestCase):
         """
         # --- Create from query dictionary
         query = {
-            'root': '../data', 
-            'dat': 'dat.hdf5', 
-            'bet': 'bet.hdf5'}
+            'root': '..', 
+            'dat': 'data/**/dat.hdf5', 
+            'bet': 'data/**/bet.hdf5'}
 
         self.db = DB(query)
+        self.db.set_paths({'code': '.'})
 
     def test_csv(self):
 
         # --- Create CSV file
-        self.db.set_paths({'code': '.'})
         self.db.to_csv()
 
         # --- Reload from CSV
@@ -43,7 +43,6 @@ class TestDB(unittest.TestCase):
     def test_yml(self):
 
         # --- Create YML file
-        self.db.set_paths({'code': '.'})
         self.db.to_yml()
 
         # --- Reload from YML 
@@ -63,9 +62,6 @@ class TestDB(unittest.TestCase):
                 shutil.rmtree(os.path.dirname(fname))
 
     def test_compress(self):
-
-        # --- Set paths['data'] so that relative paths are archived
-        self.db.set_paths('..')
 
         # --- Compress to current directory
         fname = './data.tar.gz'
