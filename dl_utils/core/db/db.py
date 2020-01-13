@@ -246,7 +246,7 @@ class DB():
         Method to refresh rows by updating with results of query
 
         """
-        if self.query is {} and matches is None:
+        if len(self.query) == 0 and matches is None:
             return
 
         # --- Query for matches
@@ -294,7 +294,7 @@ class DB():
     # ITERATE AND UPDATES 
     # ===================================================================
 
-    def cursor(self, mask=None, splits_curr=None, splits_total=None, status='Iterating | {:06d}', verbose=True, flush=False):
+    def cursor(self, mask=None, indices=None, splits_curr=None, splits_total=None, status='Iterating | {:06d}', verbose=True, flush=False):
         """
         Method to create Python generator to iterate through dataset
         
@@ -309,6 +309,10 @@ class DB():
         # --- Apply mask
         if mask is not None:
             df = df[mask]
+
+        # --- Apply indices
+        if indices is not None:
+            df = df.iloc[indices]
 
         # --- Create splits
         if splits_total is not None:
@@ -346,14 +350,14 @@ class DB():
 
         return range(splits[splits_curr], splits[splits_curr + 1]), status
 
-    def apply(self, funcs, kwargs, load=None, mask=None, replace=False):
+    def apply(self, funcs, kwargs, load=None, mask=None, indices=None, replace=False):
         """
         Method to apply a series of funcs to entire spreadsheet (or partial defined by mask) 
 
         """
         dfs = []
 
-        for sid, fnames, header in self.cursor(mask=mask):
+        for sid, fnames, header in self.cursor(mask=mask, indices=indices):
             dfs.append(self.apply_row(sid, funcs, kwargs, load=load, fnames=fnames, header=header, replace=replace))
 
         return pd.concat(dfs, axis=0)
@@ -378,7 +382,9 @@ class DB():
             if load is not None:
                 to_load = {v: fnames[v] for v in kwargs_.values() if v in fnames and type(fnames[v]) is str}
                 for key, fname in to_load.items():
-                    fnames[key] = load(fname)[0]
+                    fnames[key] = load(fname)
+                    if type(fnames[key]) is tuple:
+                        fnames[key] = fnames[key][0]
 
             # --- Ensure all kwargs values are hashable
             kwargs_ = {k: tuple(v) if type(v) is list else v for k, v in kwargs_.items()}
