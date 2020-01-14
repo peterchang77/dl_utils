@@ -465,7 +465,7 @@ class DB():
     # CREATE SUMMARY DB 
     # ===================================================================
 
-    def create_summary(self, kwargs, fnames=None, header=None, folds=5, yml='./ymls/db.yml'):
+    def create_summary(self, kwargs, fnames=[], header=[], folds=5, yml='./ymls/db.yml'):
         """
         Method to generate summary training stats via self.apply(...) operation
 
@@ -481,30 +481,28 @@ class DB():
         """
         df = self.apply(**kwargs)
 
-        # --- Join header 
-        if header is not None:
-            h = pd.DataFrame(index=df.index)
-            h = h.join(self.header[header])
+        # --- Create merged
+        mm = self.df_merge(rename=False)
+        mm = mm[fnames + header]
 
-        # --- Join fnames
-        if fnames is not None:
-            f = pd.DataFrame(index=df.index)
-            f = f.join(self.fnames[fnames])
+        # --- Create validation folds
+        v = np.arange(mm.shape[0]) % folds 
+        v = v[np.random.permutation(v.size)]
+        mm['valid'] = v
 
-        # --- Add validation fold
-        v = np.arange(h.shape[0]) % folds 
-        h['valid'] = v[np.random.permutation(v.size)]
-        h = pd.concat((h, df), axis=1)
+        # --- Join and split
+        header = header + list(df.columns)
+        df = df.join(mm)
 
         # --- Create new DB() object
-        db = DB(fnames=f, header=h)
+        db = DB(fnames=df[fnames], header=df[header])
         
         # --- Serialize
         db.set_files(yml)
         db.to_yml()
 
         # --- Final output
-        printd('Summary complete: %i patients | %i slices' % (np.unique(f.index).size, f.shape[0]))
+        printd('Summary complete: %i patients | %i slices' % (mm.shape[0], df.shape[0]))
 
         return db
 
