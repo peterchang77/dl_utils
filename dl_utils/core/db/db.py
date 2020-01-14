@@ -42,10 +42,12 @@ class DB():
 
         # --- Load YML and CSV files
         self.load_yml()
-        self.load_csv()
+        self.load_csv(**kwargs)
 
         # --- Refresh
         self.refresh()
+
+    def init_custom(self, *args, **kwargs): pass
 
     def parse_args(self, *args, **kwargs):
         """
@@ -136,10 +138,27 @@ class DB():
 
         :params
 
-          (dict) files : {'csv': ... or None, 'yml': ... or None}
+          (dict) files : {'csv': ... or None, 'yml': ... or None}, OR
+          (str)  files : /path/to/db.csv.gz or /path/to/db.yml
 
         """
-        files = {**self.files, **(files or {})} 
+        if type(files) is str:
+
+            # --- Extract paths, files from provided YML or CSV file
+            suffix = '/'.join(files.split('/')[-2:])
+            prefix = '/'.join(files.split('/')[:-2])
+
+            files = {
+                'csv': '/' + suffix.replace('yml', 'csv'),
+                'yml': '/' + suffix.replace('csv', 'yml')}
+
+            if files['csv'][-2:] != 'gz':
+                files['csv'] += '.gz'
+
+            self.set_paths({'code': prefix}, update_fnames=False)
+
+        else:
+            files = {**self.files, **(files or {})} 
 
         if self.paths['code'] != '':
             self.files['csv'] = files['csv'] or '/csvs/db.csv.gz'
@@ -168,18 +187,25 @@ class DB():
             with open(fname, 'r') as y:
                 configs =  yaml.load(y, Loader=yaml.FullLoader)
 
-            for attr in self.ATTRS:
-                setattr(self, attr, configs[attr])
+            for attr, config in configs.items():
+                setattr(self, attr, config)
 
     # ===================================================================
     # CSV | LOAD and PREPARE
     # ===================================================================
 
-    def load_csv(self, fname=None):
+    def load_csv(self, fname=None, **kwargs):
         """
         Method to load CSV file
 
         """
+        # --- Initialize from manually passed kwargs if possible
+        if 'fnames' in kwargs:
+            self.fnames = kwargs.pop('fnames', None)
+            self.header = kwargs.pop('header', pd.DataFrame(index=self.fnames.index))
+
+            return
+
         fname = fname or self.get_files()['csv'] or ''
 
         if os.path.exists(fname):
@@ -294,7 +320,18 @@ class DB():
     # ITERATE AND UPDATES 
     # ===================================================================
 
-    def cursor(self, mask=None, indices=None, splits_curr=None, splits_total=None, status='Iterating | {:06d}', verbose=True, flush=False):
+    def row(self, index=None, sid=None):
+        """
+        Method to return single row at self.fnames and self.header
+
+        """
+        if index is not None:
+            return {**self.fnames.iloc[index].to_dict(), **self.header.iloc[index].to_dict()} 
+        
+        if sid is not None: 
+            return {**self.fnames.loc[sid].to_dict(), **self.header.loc[sid].to_dict()}
+
+    def cursor(self, mask=None, indices=None, split=None, splits=None, status='Iterating | {:06d}', verbose=True, flush=False):
         """
         Method to create Python generator to iterate through dataset
         
@@ -315,8 +352,8 @@ class DB():
             df = df.iloc[indices]
 
         # --- Create splits
-        if splits_total is not None:
-            r, status = self.create_splits(splits_curr, splits_total, df.shape[0], status)
+        if splits is not None:
+            r, status = self.create_splits(split, splits, df.shape[0], status)
             df = df.iloc[r]
 
         for tups in df.itertuples():
@@ -330,25 +367,25 @@ class DB():
 
             yield tups[0], fnames, header
 
-    def create_splits(self, splits_curr, splits_total, rows, status):
+    def create_splits(self, split, splits, rows, status):
         """
         Method to identify current split range
 
         """
         # --- Read from os.environ if None
-        if splits_curr is None:
-            splits_curr = int(os.environ.get('SPLITS_CURR', 0))
+        if split is None:
+            split = int(os.environ.get('DL_SPLIT', 0))
 
         # --- Create splits
-        splits = np.linspace(0, rows, splits_total + 1)
-        splits = np.round(splits).astype('int')
+        sp = np.linspace(0, rows, splits + 1)
+        sp = np.round(sp).astype('int')
 
         # --- Update status message
         ss = status.split('|')
-        ss[0] = ss[0] + '(split == {}/{}) '.format(splits_curr + 1, splits_total)
+        ss[0] = ss[0] + '(split == {}/{}) '.format(split + 1, splits)
         status = '|'.join(ss)
 
-        return range(splits[splits_curr], splits[splits_curr + 1]), status
+        return range(sp[split], sp[split + 1]), status
 
     def apply(self, funcs, kwargs, load=None, mask=None, indices=None, replace=False):
         """
@@ -382,9 +419,10 @@ class DB():
             if load is not None:
                 to_load = {v: fnames[v] for v in kwargs_.values() if v in fnames and type(fnames[v]) is str}
                 for key, fname in to_load.items():
-                    fnames[key] = load(fname)
-                    if type(fnames[key]) is tuple:
-                        fnames[key] = fnames[key][0]
+                    if os.path.isfile(fname):
+                        fnames[key] = load(fname)
+                        if type(fnames[key]) is tuple:
+                            fnames[key] = fnames[key][0]
 
             # --- Ensure all kwargs values are hashable
             kwargs_ = {k: tuple(v) if type(v) is list else v for k, v in kwargs_.items()}
@@ -422,6 +460,53 @@ class DB():
 
         """
         pass
+
+    # ===================================================================
+    # CREATE SUMMARY DB 
+    # ===================================================================
+
+    def create_summary(self, kwargs, fnames=None, header=None, folds=5, yml='./ymls/db.yml'):
+        """
+        Method to generate summary training stats via self.apply(...) operation
+
+        :params
+
+          (dict) kwargs : kwargs initialized via funcs.init(...)
+          (list) fnames : list of fnames to join
+          (list) header : list of header columns to join
+
+          (int)  folds  : number of cross-validation folds
+          (str)  path   : directory path to save summary (ymls/ and csvs/)
+
+        """
+        df = self.apply(**kwargs)
+
+        # --- Join header 
+        if header is not None:
+            h = pd.DataFrame(index=df.index)
+            h = h.join(self.header[header])
+
+        # --- Join fnames
+        if fnames is not None:
+            f = pd.DataFrame(index=df.index)
+            f = f.join(self.fnames[fnames])
+
+        # --- Add validation fold
+        v = np.arange(h.shape[0]) % folds 
+        h['valid'] = v[np.random.permutation(v.size)]
+        h = pd.concat((h, df), axis=1)
+
+        # --- Create new DB() object
+        db = DB(fnames=f, header=h)
+        
+        # --- Serialize
+        db.set_files(yml)
+        db.to_yml()
+
+        # --- Final output
+        printd('Summary complete: %i patients | %i slices' % (np.unique(f.index).size, f.shape[0]))
+
+        return db
 
     # ===================================================================
     # EXTRACT and SERIALIZE 
