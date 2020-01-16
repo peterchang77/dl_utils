@@ -326,10 +326,12 @@ class DB():
 
         """
         if index is not None:
-            return {**self.fnames.iloc[index].to_dict(), **self.header.iloc[index].to_dict()} 
+            fnames = {k: '{}{}'.format(self.paths['data'], v) for k, v in self.fnames.iloc[index].to_dict().items()}
+            return {**fnames, **self.header.iloc[index].to_dict()} 
         
         if sid is not None: 
-            return {**self.fnames.loc[sid].to_dict(), **self.header.loc[sid].to_dict()}
+            fnames = {k: '{}{}'.format(self.paths['data'], v) for k, v in self.fnames.loc[sid].to_dict().items()}
+            return {**fnames, **self.header.loc[sid].to_dict()}
 
     def cursor(self, mask=None, indices=None, split=None, splits=None, status='Iterating | {:06d}', verbose=True, flush=False):
         """
