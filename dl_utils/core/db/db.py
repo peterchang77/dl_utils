@@ -316,6 +316,15 @@ class DB():
             found = sum(self.fnames[col].apply(lambda x : os.path.exists(self.paths['data'] + x)))
             printd('COLUMN: {} | {:06d} / {:06d} exists'.format(col, found, self.fnames[col].shape[0]))
 
+    def fnames_like(self, suffix, like=None):
+        """
+        Method to create new fnames in pattern based on column defined by like
+
+        """
+        like = like or self.fnames.columns[0]
+
+        return self.fnames[like].apply(lambda x : '{}/{}'.format(os.path.dirname(x), suffix))
+
     # ===================================================================
     # ITERATE AND UPDATES 
     # ===================================================================

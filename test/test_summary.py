@@ -16,26 +16,27 @@ class TestSummary(unittest.TestCase):
         """
         # --- Create from query dictionary
         query = {
-            'root': '..', 
-            'dat': 'data/**/dat.hdf5', 
-            'bet': 'data/**/bet.hdf5'}
+            'root': '../data/bet', 
+            'dat': 'dat.hdf5', 
+            'bet': 'bet.hdf5',
+            'msk': 'msk.hdf5'}
 
         self.db = DB(query)
-        self.db.set_paths({'code': '.'})
+        self.db.set_paths({'code': '../data/bet'})
 
     def test_create_summary(self):
 
         funcs_def = funcs.get_default_funcs_def('ct_train', 
-            mapping={'dat': 'dat', 'lbl': 'bet'}, classes=2)
+            mapping={'dat': 'dat', 'lbl': 'bet'}, classes=1)
 
         db = self.db.create_summary(
             kwargs=funcs.init(funcs_def, load=io.load),
-            fnames=['dat', 'bet'],
+            fnames=['dat', 'bet', 'msk'],
             header=[],
-            yml='../data/ymls/db.yml')
+            yml='../data/bet/ymls/db.yml')
 
         # --- Create cohorts
-        db.header['fg'] = db.header['lbl-02']
+        db.header['fg'] = db.header['lbl-01']
         db.header['bg'] = ~db.header['fg']
         db.to_yml()
 
