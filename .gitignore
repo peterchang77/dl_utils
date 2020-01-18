@@ -6,13 +6,4 @@ __pycache__
 *.hdf5
 *.csv
 *.zip
-temp/
-full/dl_utils/query/__init__.py
-full/dl_utils/query/query.py
-full/dl_utils/io/hdf5.py
-full/dl_utils/hasher/hasher.py
-full/dl_utils/hasher/__init__.py
-full/dl_utils/printer/__init__.py
-full/dl_utils/printer/printer.py
-full/dl_utils/math/ops.py
-full/dl_utils/math/__init__.py
+/data/bet
