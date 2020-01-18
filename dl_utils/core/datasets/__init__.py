@@ -1,1 +1,1 @@
-from .datasets import download, prepare
+from .datasets import download

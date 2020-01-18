@@ -1,7 +1,6 @@
 import os, requests
 from zipfile import ZipFile
 from dl_utils.general import *
-from dl_train.client import Client 
 from dl_utils.db import DB
 
 def download(name, path='/data/raw'):
@@ -73,10 +72,3 @@ def unzip(dst, path):
 
     printp('Completed archive extraction ({:0.3f} MB / {:0.3f} MB)'.format(
         unzip_size / 1e6, total_size / 1e6), unzip_size / total_size)
-
-def prepare(name, configs, client=None):
-    """
-    Method to create Python generators for train / valid data
-
-    """
-    pass
