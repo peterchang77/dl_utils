@@ -1,4 +1,4 @@
-import os, glob, sys, subprocess
+import os, glob, sys, subprocess, pathlib
 
 def prepare_code(repos, path):
 
@@ -57,3 +57,8 @@ def prepare_env(repos=['utils', 'train'], path=None, CUDA_VISIBLE_DEVICES=0):
 
     # --- Set visible GPU if more than one is available on machine
     os.environ['CUDA_VISIBLE_DEVICES'] = str(CUDA_VISIBLE_DEVICES)
+
+    # --- Clean up (remove file if not in standard location)
+    fname = str(pathlib.Path(__file__).absolute())
+    if fname.split('/')[-2] != 'dl_utils':
+        os.remove(fname)
