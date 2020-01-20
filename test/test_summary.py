@@ -27,7 +27,7 @@ class TestSummary(unittest.TestCase):
     def test_create_summary(self):
 
         funcs_def = funcs.get_default_funcs_def('ct_train', 
-            mapping={'dat': 'dat', 'lbl': 'bet'}, classes=1)
+            dats=['dat'], lbls=['bet'], classes=2)
 
         db = self.db.create_summary(
             kwargs=funcs.init(funcs_def, load=io.load),
@@ -36,7 +36,7 @@ class TestSummary(unittest.TestCase):
             yml='../data/bet/ymls/db.yml')
 
         # --- Create cohorts
-        db.header['fg'] = db.header['lbl-01']
+        db.header['fg'] = db.header['bet-01']
         db.header['bg'] = ~db.header['fg']
         db.to_yml()
 

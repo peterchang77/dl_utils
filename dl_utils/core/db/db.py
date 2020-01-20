@@ -502,7 +502,7 @@ class DB():
         mm['valid'] = v
 
         # --- Join and split
-        header = header + list(df.columns)
+        header = header + ['valid'] + list(df.columns)
         df = df.join(mm)
 
         # --- Create new DB() object

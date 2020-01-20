@@ -53,27 +53,27 @@ def calculate_coord(arr):
 
     return {'coord': np.arange(z) / (z - 1)}
 
-def calculate_stats(dat, axis=(0, 1, 2)):
+def calculate_stats(arr, name, axis=(0, 1, 2, 3)):
     """
     Method to calculate image statistics across channels: mu, sd
 
     """
-    mu = dat.mean(axis=tuple(axis))
-    sd = dat.std(axis=tuple(axis))
+    mu = arr.mean(axis=tuple(axis))
+    sd = arr.std(axis=tuple(axis))
 
-    mu = {'mu-{:02d}'.format(c): m for c, m in enumerate(mu)} 
-    sd = {'sd-{:02d}'.format(c): s for c, s in enumerate(sd)} 
+    mu = {'{}-mu'.format(name[1:]): mu} 
+    sd = {'{}-sd'.format(name[1:]): sd} 
 
     return {**mu, **sd}
 
-def calculate_label(arr, classes, axis=(1, 2, 3)):
+def calculate_label(arr, name, classes, axis=(1, 2, 3)):
     """
     Method to calculate if label class is present 
 
     """
     is_present = lambda c : np.sum(arr == c, axis=tuple(axis)) > 0
 
-    return {'lbl-{:02d}'.format(c): is_present(c) for c in range(classes + 1)}
+    return {'{}-{:02d}'.format(name[1:], c): is_present(c) for c in range(classes)}
 
 def calculate_slices(arr):
     """
@@ -96,39 +96,29 @@ FUNCS = {
 # DEFAULT FUNCS_DEF
 # ============================================================
 
-def get_default_funcs_def(func_def, **kwargs):
+def get_default_funcs_def(func_def, dats=['dat'], lbls=['lbl'], classes=2, **kwargs):
 
-    # --- Get defaults
-    mapping = kwargs.get('mapping', {'dat': 'dat', 'lbl': 'lbl'})
-    classes = kwargs.get('classes', 2)
+    if func_def not in ['mr_train', 'xr_train', 'ct_train']:
+        return []
 
+    # --- Create generic label-derived stats
+    fdef = [{
+        'func': 'coord',
+        'kwargs': {'arr': lbls[0]}}]
+
+    fdef += [{
+        'func': 'label',
+        'kwargs': {'arr': l, 'name': '!' + l, 'classes': classes}
+        } for l in lbls]
+
+    # --- Add data-specific stats (if needed)
     if func_def in ['mr_train', 'xr_train']:
 
-        return [{
-
-            'func': 'coord',
-            'kwargs': {'arr': mapping['lbl']}}, {
-
+        fdef = fdef[0:1] + [{
             'func': 'stats',
-            'kwargs': {'arr': mapping['dat']}}, {
+            'kwargs': {'arr': d, 'name': '!' + d}
+            } for d in dats] + fdef[1:]
 
-            'func': 'label',
-            'kwargs': {'arr': mapping['lbl'], 'classes': classes}
-
-        }]
-
-    if func_def in ['ct_train']:
-
-        return [{
-
-            'func': 'coord',
-            'kwargs': {'arr': mapping['lbl']}}, {
-
-            'func': 'label',
-            'kwargs': {'arr': mapping['lbl'], 'classes': classes}
-
-        }]
-
-    return []
+    return fdef
 
 # ============================================================
