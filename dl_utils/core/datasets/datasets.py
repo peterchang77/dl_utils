@@ -23,14 +23,13 @@ def retrieve(url, path):
     Method to download and unzip remote data archive
 
     """
-    # --- Download
+    # --- Download and unzip
     dst= '{}/zips/raw.zip'.format(path)
+
     if not os.path.exists(dst):
         os.makedirs(os.path.dirname(dst), exist_ok=True)
         pull(url, dst)
-    
-    # --- Unzip
-    unzip(dst, path)
+        unzip(dst, path)
 
     # --- Set paths
     db = DB('{}/ymls/db.yml'.format(path))

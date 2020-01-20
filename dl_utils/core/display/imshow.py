@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy import ndimage
+from .montage import montage
 
 def prepare_array(x):
     """
@@ -11,6 +12,9 @@ def prepare_array(x):
         return x
 
     x = np.squeeze(x.copy())
+
+    if x.ndim == 4:
+        x = x[0]
 
     if x.ndim == 3:
         x = x[..., 0]
@@ -33,8 +37,8 @@ def imshow(dat, lbl=None, radius=1, vm=None, title=None, figsize=(7, 7)):
       (int) vm[1] : upper range of visualized values
 
     """
-    x = prepare_array(dat)
-    m = prepare_array(lbl.astype('uint8'))
+    x = montage(dat)
+    m = montage(lbl)
 
     # --- Overlay if lbl also provided
     if m is not None:
