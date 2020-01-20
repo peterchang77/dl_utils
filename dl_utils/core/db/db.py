@@ -509,6 +509,7 @@ class DB():
         db = DB(fnames=df[fnames], header=df[header])
         
         # --- Serialize
+        db.set_paths(self.paths, update_fnames=False)
         db.set_files(yml)
         db.to_yml()
 
