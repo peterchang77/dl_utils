@@ -1,6 +1,3 @@
-import sys
-sys.path.append('..')
-
 import argparse
 from dl_utils import datasets
 
