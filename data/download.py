@@ -3,11 +3,7 @@ from dl_utils import datasets
 
 def download(name):
 
-    if name == 'bet':
-        datasets.download(name='bet', path='.')
-
-    if name == 'jars':
-        datasets.download(name='jars', path='.')
+    datasets.download(name=name, path='.')
 
 if __name__ == '__main__':
 

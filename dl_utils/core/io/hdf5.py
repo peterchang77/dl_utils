@@ -16,8 +16,7 @@ def save(fname, data, meta={}, chunks=None, compression='gzip', **kwargs):
 
     """
     # --- Initialize
-    fname, data, meta, chunks, compression = \
-        init_save(fname, data, meta, chunks, compression)
+    fname, meta, kwargs = init_save(fname, data, meta, chunks, compression, **kwargs)
 
     # --- Temporary file if fname already exists
     exists = os.path.exists(fname)
@@ -30,10 +29,6 @@ def save(fname, data, meta={}, chunks=None, compression='gzip', **kwargs):
     # --- Save file
     with h5py.File(fname, 'w') as f:
 
-        kwargs = {'name': 'data', 'data': data, 'chunks': chunks}
-        if compression is not None:
-            kwargs['compression'] = compression
-
         f.create_dataset(**kwargs)
 
         # --- Save attributes
@@ -44,45 +39,55 @@ def save(fname, data, meta={}, chunks=None, compression='gzip', **kwargs):
     if exists:
         shutil.move(src=fname, dst=fname[:-6] + '.hdf5')
 
-def init_save(fname, data, meta, chunks, compression):
+def init_save(fname, data, meta, **kwargs):
     """
     Method to initialize save parameters to default values if needed
 
     Note that to properly initialize affine matrix, it is recommended to load data first via an Array() object
 
     """
-    # --- Data checks
+    # --- Assertions 
     assert type(fname) is str, 'Error fname is not str'
-    if fname[-5:] != '.hdf5':
-        fname += '.hdf5'
-
     assert type(data) is np.ndarray, 'Error data is not a NumPy array'
     assert data.ndim == 4, 'Error data is not a 4D array'
 
+    if compression is not None:
+        assert compression in ['gzip', 'lzf'], 'Error specified compression type %s is not supported' % compression
+
+    # --- Warnings
     if str(data.dtype) not in ['int16', 'uint8']:
         printd('Warning data dtype is %s' % data.dtype)
 
-    # --- Initialize new meta with desired keys
-    keys = ['affine']
-    meta = {k: meta[k] for k in keys if k in meta}
+    # --- Initialize fname
+    if fname[-5:] != '.hdf5':
+        fname += '.hdf5'
 
-    if 'affine' not in meta:
-        meta['affine'] = np.eye(4, dtype='float32')
+    parse_dict = lambda d, keys : {k: d[k] for k in d if k in keys}
+
+    # =================================================================
+    # INITIALIZE META
+    # =================================================================
+    DEFAULTS = {
+        'affine': np.eye(4, dtype='float32')}
+
+    meta = {**DEFAULTS, **parse_dict(meta, ['affine'])}
 
     if type(meta['affine']) is list:
         affine = np.eye(4, dtype='float32')
         affine.ravel()[:12] = meta['affine']
         meta['affine'] = affine
 
-    # --- Initialize chunks
-    if chunks is None:
-        chunks = tuple([1, data.shape[1], data.shape[2], data.shape[3]])
+    # =================================================================
+    # INITIALIZE KWARGS (name, data, chunks, compression) 
+    # =================================================================
+    DEFAULTS = {
+        'name': 'data',
+        'data': data,
+        'chunks': tuple([1, data.shape[1], data.shape[2], data.shape[3]])}
 
-    # --- Initialize compression
-    if compression is not None:
-        assert compression in ['gzip', 'lzf'], 'Error specified compression type %s is not supported' % compression
+    kwargs = {**DEFAULTS, **parse_dict(kwargs, ['chunks', 'compression'])}
 
-    return fname , data, meta, chunks, compression
+    return fname, meta, kwargs 
 
 def load(fname, infos=None, **kwargs):
     """
@@ -196,7 +201,6 @@ def save_hdf5(fname, data, meta=None, chunks=None, compression='gzip', **kwargs)
 
     meta = meta or {}
     save(fname, data=data, meta=meta, chunks=chunks, compression=compression)
-
 
 LOAD_FUNCS = {'hdf5': load_hdf5}
 SAVE_FUNCS = {'hdf5': save_hdf5}
