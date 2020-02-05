@@ -524,7 +524,7 @@ class DB():
     # EXTRACT and SERIALIZE 
     # ===================================================================
 
-    def to_json(self, prefix='local://', max_rows=None):
+    def to_json(self, prefix='local://', fnames=None, header=None, max_rows=None):
         """
         Method to serialize contents of DB to JSON
 
@@ -556,13 +556,16 @@ class DB():
         }
 
         """
+        fnames = self.fnames[fnames or self.fnames.columns]
+        header = self.header[header or self.header.columns]
+
         # --- Prepare fnames
         rename = lambda x : '{}{}{}'.format(prefix, self.paths['data'], x)
-        for col in self.fnames:
-            self.fnames[col] = self.fnames[col].apply(rename)
+        for col in fnames:
+            fnames[col] = fnames[col].apply(rename)
 
-        header = self.header.to_dict(orient='index')
-        fnames = self.fnames.to_dict(orient='index')
+        fnames = fnames.to_dict(orient='index')
+        header = header.to_dict(orient='index')
 
         # --- Extract sid, fname
         extract = lambda k : {'sid': k, 'fname': fnames[k].get('dat', None)}
