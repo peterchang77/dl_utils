@@ -16,7 +16,7 @@ def save(fname, data, meta={}, chunks=None, compression='gzip', **kwargs):
 
     """
     # --- Initialize
-    fname, meta, kwargs = init_save(fname, data, meta, chunks, compression, **kwargs)
+    fname, meta, kwargs = init_save(fname, data, meta, chunks=chunks, compression=compression, **kwargs)
 
     # --- Temporary file if fname already exists
     exists = os.path.exists(fname)
@@ -51,8 +51,8 @@ def init_save(fname, data, meta, **kwargs):
     assert type(data) is np.ndarray, 'Error data is not a NumPy array'
     assert data.ndim == 4, 'Error data is not a 4D array'
 
-    if compression is not None:
-        assert compression in ['gzip', 'lzf'], 'Error specified compression type %s is not supported' % compression
+    if kwargs.get('compression', None) is not None:
+        assert kwargs['compression'] in ['gzip', 'lzf'], 'Error specified compression type %s is not supported' % compression
 
     # --- Warnings
     if str(data.dtype) not in ['int16', 'uint8']:
