@@ -12,7 +12,8 @@ def download(name, path='/data/raw', overwrite=False):
         'bet': 'https://www.dropbox.com/s/051khxpy3s1vmxs/bet.zip?dl=1',
         'jars': 'https://www.dropbox.com/s/21itp32v9ht0czh/jars.zip?dl=1',
         'brats': 'https://www.dropbox.com/s/wuady574manrwew/brats.zip?dl=1',
-        'niigzs': 'https://www.dropbox.com/s/c1gprnesbcmg5c6/niigzs.zip?dl=1'}
+        'niigzs': 'https://www.dropbox.com/s/c1gprnesbcmg5c6/niigzs.zip?dl=1',
+        'cxr_ett': 'https://www.dropbox.com/s/9dmmmgvzcbwy7ww/cxr_ett.zip?dl=1'}
 
     if name not in URLS:
         printd('ERROR provided dataset name is not recognized')
