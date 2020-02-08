@@ -1,7 +1,7 @@
 import os, glob, importlib
 from types import ModuleType
 
-def load_modules(repo='dl_utils', submodule='arrays', allows=['blobs']):
+def load_modules(repo='dl_utils', submodule='arrays', allows=['blobs', 'transform']):
     """
     Method to compile submodule from all available libraries
 

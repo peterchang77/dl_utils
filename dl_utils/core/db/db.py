@@ -327,6 +327,54 @@ class DB():
 
         return self.fnames[like].apply(lambda x : '{}/{}'.format(os.path.dirname(x), suffix))
 
+    def restack(self, cols, on, marker=None):
+        """
+        Method to stack specified columns on existing fname
+
+        All other fnames/header data will be copied from existing row
+
+        :params
+
+          (list) cols   : columns to stack
+          (str)  on     : existing fname to stack on
+          (str)  marker : if provided, create new header indicating stack status
+
+        """
+        fnames = []
+        header = []
+
+        # --- Create new header
+        if marker is not None:
+            self.header[marker] = False
+
+        # --- Create baseline fnames
+        cols_ = [c for c in self.fnames.columns if c not in cols]
+        fnames.append(self.fnames[cols_])
+        header.append(self.header)
+
+        for col in cols:
+
+            f = fnames[0].copy()
+            h = header[0].copy()
+
+            f[on] = self.fnames[col]
+
+            index = ['{}-{}'.format(i, col) for i in f.index]
+            f.index = index
+            h.index = index
+            f.index.name = 'sid'
+            h.index.name = 'sid'
+
+            if marker is not None:
+                h[marker] = True
+            
+            fnames.append(f)
+            header.append(h)
+
+        # -- Combine
+        self.fnames = pd.concat(fnames, axis=0)
+        self.header = pd.concat(header, axis=0)
+
     # ===================================================================
     # ITERATE AND UPDATES 
     # ===================================================================
