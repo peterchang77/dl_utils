@@ -547,9 +547,7 @@ class DB():
         mm = mm[fnames + header]
 
         # --- Create validation folds
-        v = np.arange(mm.shape[0]) % folds 
-        v = v[np.random.permutation(v.size)]
-        mm['valid'] = v
+        self.create_valid_column(df=mm, folds=folds)
 
         # --- Join and split
         header = header + ['valid'] + list(df.columns)
@@ -567,6 +565,15 @@ class DB():
         printd('Summary complete: %i patients | %i slices' % (mm.shape[0], df.shape[0]))
 
         return db
+
+    def create_valid_column(self, df=None, folds=5):
+
+        df = df or self.header
+
+        v = np.arange(df.shape[0]) % folds 
+        v = v[np.random.permutation(v.size)]
+
+        df['valid'] = v
 
     # ===================================================================
     # EXTRACT and SERIALIZE 
