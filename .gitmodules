@@ -1,3 +1,4 @@
 [submodule "dl_utils/edge"]
 	path = dl_utils/edge
 	url = https://github.com/peterchang77/dl_utils_edge.git
+	branch = master
