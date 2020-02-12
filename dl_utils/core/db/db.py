@@ -376,6 +376,75 @@ class DB():
         self.header = pd.concat(header, axis=0)
 
     # ===================================================================
+    # DATA AUGMENTATION 
+    # ===================================================================
+
+    def create_fnames_augmented(self, column, n, basename=None):
+        """
+        Method to create augmented fnames in the following dir structure:
+
+        /[root]/
+          |--- dat.hdf5
+          ...
+          |--- augs/
+               |--- aug-000/
+                    |--- dat.hdf5
+                    ...
+               |--- aug-001/
+               |--- aug-002/
+               ...
+
+        :params
+
+          (str) column : name of column to augment
+          (int) n      : number of augmentations
+
+        """
+        assert type(column) is str
+        assert type(n) is int
+        assert column in self.fnames
+
+        roots = [os.path.dirname(f) for f in self.fnames[column]]
+        bases = [os.path.basename(f) for f in self.fnames[column]] if basename is None else [basename] * len(roots)
+
+        keys = ['{}-aug-{:03d}'.format(column, i) for i in range(n)]
+
+        for i, key in enumerate(keys):
+
+            self.fnames[key] = \
+                ['{}/augs/aug-{:03d}/{}'.format(r, i, b) for r, b in zip(roots, bases)]
+
+        return keys
+
+    def realign(self, cols, align_with, jars, mask=None, flush=True):
+        """
+        Method to realign volumes in provided columns with reference volume
+
+        """
+        for fname in cols + [align_with]:
+            assert fname in self.fnames
+
+        assert hasattr(jars, 'create')
+
+        for sid, fnames, header in self.cursor(mask=mask, flush=flush):
+
+            # --- Load reference volume
+            ref = jars.create(fnames[align_with])
+
+            # --- Align and save
+            for col in cols:
+
+                arr = jars.create(fnames[col])
+                arr = arr.align_with(ref)
+
+                dst = '{}/{}.hdf5'.format(
+                    os.path.dirname(fnames[align_with]),
+                    os.path.splitext(os.path.basename(fnames[col]))[0])
+
+                arr.to_hdf5(dst)
+                self.fnames.at[sid, col] = dst
+
+    # ===================================================================
     # ITERATE AND UPDATES 
     # ===================================================================
 
