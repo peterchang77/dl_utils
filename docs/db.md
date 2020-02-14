@@ -83,8 +83,12 @@ funcs:
         file: (str) ==> path to Python file wth code
         name: (str) ==> name of method in file
       kwargs:
-        arg0: ...
-        arg1: ...
+        arg0: val0
+        arg1: val1
+        ...
+      column: 
+        key0: val0
+        key1: val1
         ...
 
 # --- Client subclass
