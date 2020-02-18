@@ -52,7 +52,9 @@ def init(fdefs='mr_train', **kwargs):
             assert 'name' in py 
             fdef['lambda'] = init_python(py_file=py['file'], py_name=py['name'])
 
-        assert fdef['lambda'] is not None
+        # --- If no lambda function is defined, use identity function
+        if fdef['lambda'] is None:
+            fdef['lambda'] = lambda **kwargs : kwargs
 
         fdefs_.append(fdef)
 
@@ -62,7 +64,7 @@ def init_python(py_file, py_name):
 
     # --- Convert file path to relative import
     if os.path.exists(py_file):
-        py_file = '.'.join(py_file.split('/')[1:-1])
+        py_file = '.'.join(py_file.split('/')[:-1])
 
     module = importlib.import_module(py_file)
 

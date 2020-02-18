@@ -59,7 +59,8 @@ class DB():
             'paths': {'data': '', 'code': ''},
             'files': {'csv': None, 'yml': None},
             'query': {},
-            'funcs': []}
+            'sform': {},
+            'fdefs': []}
 
         # --- Extract values from args 
         files = {}
@@ -82,7 +83,7 @@ class DB():
                 args_['query'] = arg
 
             elif type(arg) is list:
-                args_['funcs'] = arg
+                args_['fdefs'] = arg
 
         # --- Extract values from ENV 
         environ = {}
@@ -102,7 +103,7 @@ class DB():
         configs['files'] = {**DEFAULTS['files'], **files, **kwargs.get('files', {})}
 
         # --- Attributes to serialize in self.to_yml(...) 
-        self.ATTRS = ['paths', 'files', 'query', 'funcs']
+        self.ATTRS = ['paths', 'files', 'query', 'sform', 'fdefs']
 
         # --- Save
         for attr in self.ATTRS:
@@ -212,7 +213,7 @@ class DB():
         fname = fname or self.get_files()['csv'] or ''
 
         if os.path.exists(fname):
-            df = pd.read_csv(fname, index_col='sid')
+            df = pd.read_csv(fname, index_col='sid', keep_default_na=False)
         else: 
             df = pd.DataFrame()
             df.index.name = 'sid'
@@ -254,23 +255,20 @@ class DB():
     # REFRESH | SYNC WITH FILE SYSTEM 
     # ===================================================================
 
-    def refresh(self, refresh_rows=False, refresh_cols=True, **kwargs):
+    def refresh(self, cols=[], update_query=False, **kwargs):
         """
         Method to refresh DB() object 
 
-          (1) Refresh fnames (rows)
-          (2) Refresh header (cols) 
-
         """
-        # --- Refresh rows 
-        if self.fnames.shape[0] == 0 or refresh_rows:
-            self.refresh_rows()
+        # --- Update query 
+        if self.fnames.shape[0] == 0 or update_query:
+            self.update_query()
 
         # --- Refresh cols
-        if refresh_rows or refresh_cols:
-            self.refresh_cols()
+        for col in cols:
+            self.refresh
 
-    def refresh_rows(self, matches=None):
+    def update_query(self, matches=None):
         """
         Method to refresh rows by updating with results of query
 
@@ -293,7 +291,7 @@ class DB():
         self.fnames.index.name = 'sid'
         self.header.index.name = 'sid'
 
-    def refresh_cols(self):
+    def refresh_cols(self, name, rows=None):
         """
         Method to refresh cols
 
@@ -313,11 +311,12 @@ class DB():
         Method to check if fnames exists
 
         """
-        cols = cols or self.fnames.columns
+        fnames = self.fnames_expand(cols=cols)
+        ljust = max([len(c) for c in fnames.columns])
 
-        for col in cols:
-            found = sum(self.fnames[col].apply(lambda x : os.path.exists(self.paths['data'] + x)))
-            printd('COLUMN: {} | {:06d} / {:06d} exists'.format(col, found, self.fnames[col].shape[0]))
+        for col in fnames.columns:
+            found = sum(fnames[col].apply(lambda x : os.path.exists(x)))
+            printd('COLUMN: {} | {:06d} / {:06d} exists'.format(col.ljust(ljust), found, fnames[col].shape[0]))
 
     def fnames_like(self, suffix, like=None):
         """
@@ -327,6 +326,34 @@ class DB():
         like = like or self.fnames.columns[0]
 
         return self.fnames[like].apply(lambda x : '{}/{}'.format(os.path.dirname(x), suffix))
+
+    def fnames_expand(self, cols=None):
+        """
+        Method to expand fnames based on defined str formats (sform)
+
+        """
+        root = self.paths['data']
+        cols = cols or self.fnames.columns
+
+        fnames = self.fnames[cols]
+
+        for col in cols:
+            if col in self.sform:
+                fnames[col] = [self.sform[col].format(root=root, sid=s) if f == '' else f 
+                    for s, f in zip(self.fnames.index, fnames[col])]
+
+        return fnames
+
+    def fnames_expand_single(self, sid, fnames=None):
+        """
+        Method to expand a single fnames dict based on str formats (sform)
+
+        """
+        if fnames is None:
+            fnames = self.fnames.loc[sid].to_dict()
+
+        return {k: self.sform[k].format(root=self.paths['data'], sid=sid) 
+            if (v == '' and k in self.sform) else v for k, v in fnames.items()}
 
     def restack(self, cols, on, marker=None):
         """
@@ -454,13 +481,12 @@ class DB():
         Method to return single row at self.fnames and self.header
 
         """
-        if index is not None:
-            fnames = {k: '{}{}'.format(self.paths['data'], v) for k, v in self.fnames.iloc[index].to_dict().items()}
-            return {**fnames, **self.header.iloc[index].to_dict()} 
-        
-        if sid is not None: 
-            fnames = {k: '{}{}'.format(self.paths['data'], v) for k, v in self.fnames.loc[sid].to_dict().items()}
-            return {**fnames, **self.header.loc[sid].to_dict()}
+        if sid is None:
+            assert index is not None
+            sid = self.fnames.index[index]
+
+        fnames = self.fnames_expand_single(sid=sid)
+        return {**fnames, **self.header.loc[sid].to_dict()} 
 
     def cursor(self, mask=None, indices=None, split=None, splits=None, status='Iterating | {:06d}', verbose=True, flush=False):
         """
@@ -493,8 +519,10 @@ class DB():
                 count += 1
                 printp(status.format(count), count / df.shape[0], flush=flush)
 
-            fnames = {k: '{}{}'.format(self.paths['data'], t) for k, t in zip(fcols, tups[1:1+fsize])}
+            fnames = {k: t for k, t in zip(fcols, tups[1:1+fsize])}
             header = {k: t for k, t in zip(hcols, tups[1+fsize:])}
+
+            fnames = self.fnames_expand_single(sid=tups[0], fnames=fnames)
 
             yield tups[0], fnames, header
 
@@ -546,14 +574,14 @@ class DB():
 
         return pd.concat(dfs, axis=0)
 
-    def apply_row(self, sid, fdefs, load=None, fnames=None, header=None, replace=False):
+    def apply_row(self, sid, fdefs, load=None, fnames=None, header=None, replace=False, clear_arrays=False):
         """
         Method to apply a series of lambda functions to single row
 
         """
         if fnames is None:
             sid = sid if sid in self.fnames.index else int(sid)
-            fnames = self.fnames.loc[sid]
+            fnames = self.fnames_expand_single(sid=sid)
 
         if header is None:
             sid = sid if sid in self.header.index else int(sid)
@@ -574,6 +602,15 @@ class DB():
                         fnames[key] = load(fname)
                         if type(fnames[key]) is tuple:
                             fnames[key] = fnames[key][0]
+
+                    else:
+                        # --- Find / init fdefs
+
+                        # --- Apply row
+                        df_ = self.apply_row(sid, fdefs, load=load, fnames=fnames, header=header, replace=replace, clear_arrays=True)
+
+                        # --- Update fnames
+                        fnames.update({k: v for k, v in df_.iloc[0].items() if k in fnames})
 
             # --- Ensure all kwargs values are hashable
             kwargs_ = {k: tuple(v) if type(v) is list else v for k, v in kwargs_.items()}
@@ -599,9 +636,22 @@ class DB():
         # --- In-place replace if df.shape[0] == 1
         if replace and df.shape[0] == 1:
             for key, col in df.items():
-                if key in self.fnames:
-                    self.fnames.at[sid, key] = col.values[0]
-                if key in self.header:
+
+                # --- Save fnames
+                if key in fnames:
+                    if type(fnames[key]) is str:
+
+                        # --- Check default methods
+                        for method in ['to_hdf5', 'to_json']:
+                            if hasattr(cols.values[0], method):
+                                getattr(cols.values[0], method)(fnames[key])
+                                break
+
+                        if clear_arrays:
+                            df.at[sid, key] = fnames[key]
+
+                # --- Save header
+                if key in header:
                     self.header.at[sid, key] = col.values[0]
 
         return df
@@ -617,7 +667,7 @@ class DB():
     # CREATE SUMMARY DB 
     # ===================================================================
 
-    def create_summary(self, kwargs, fnames=[], header=[], folds=5, yml='./ymls/db.yml'):
+    def create_summary(self, fdefs, fnames=[], header=[], folds=5, yml='./ymls/db.yml', **kwargs):
         """
         Method to generate summary training stats via self.apply(...) operation
 
@@ -631,7 +681,7 @@ class DB():
           (str)  path   : directory path to save summary (ymls/ and csvs/)
 
         """
-        df = self.apply(**kwargs)
+        df = self.apply(fdefs, **kwargs)
 
         # --- Create merged
         mm = self.df_merge(rename=False)
