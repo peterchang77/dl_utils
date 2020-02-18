@@ -46,6 +46,7 @@ class DB():
         self.load_csv(**kwargs)
 
         # --- Refresh
+        self.init_fdefs()
         self.refresh()
 
     def init_custom(self, *args, **kwargs): pass
@@ -255,7 +256,7 @@ class DB():
     # REFRESH | SYNC WITH FILE SYSTEM 
     # ===================================================================
 
-    def refresh(self, cols=[], update_query=False, **kwargs):
+    def refresh(self, cols=None, load=None, update_query=False, **kwargs):
         """
         Method to refresh DB() object 
 
@@ -264,9 +265,13 @@ class DB():
         if self.fnames.shape[0] == 0 or update_query:
             self.update_query()
 
-        # --- Refresh cols
+        # --- Create columns 
+        cols = cols or []
+        if type(cols) is str:
+            cols = [cols]
+
         for col in cols:
-            self.refresh
+            self.create_column(col=col, load=load, **kwargs)
 
     def update_query(self, matches=None):
         """
@@ -291,16 +296,59 @@ class DB():
         self.fnames.index.name = 'sid'
         self.header.index.name = 'sid'
 
-    def refresh_cols(self, name, rows=None):
+    def create_column(self, col, load=None, mask=None, indices=None, flush=False, replace=True, skip_existing=True, **kwargs):
         """
-        Method to refresh cols
+        Method to create column
 
         """
-        # --- Find rows with a None column entry
+        fdefs = self.find_fdefs(col)
+        if len(fdefs) == 0:
+            return
 
-        # --- Update rows
+        for sid, fnames, header in self.cursor(mask=mask, indices=indices, flush=flush):
+            update = not os.path.exists(fnames[col]) if col in fnames else header[col] == ''
+            if update or not skip_existing:
+                self.apply_row(sid, fdefs, load=load, fnames=fnames, header=header, replace=replace)
 
-        pass
+    # ===================================================================
+    # FDEFS FUNCTIONS 
+    # ===================================================================
+
+    def init_fdefs(self):
+        """
+        Method to initialize self.fdefs
+
+        """
+        # --- Create col_to_fdef dict
+        self.col_to_fdef = {}
+        for n, fdef in enumerate(self.fdefs):
+            if 'return' in fdef:
+                for v in fdef['return'].values():
+                    self.col_to_fdef[v] = n 
+
+    def find_fdefs(self, cols):
+        """
+        Method to find and initialize all fdefs corresponding to provided columns
+
+        """
+        if type(cols) is str:
+            cols = [cols]
+
+        fdefs = []
+        for col in cols:
+            if col in self.col_to_fdef:
+
+                fdef = self.col_to_fdef[col]
+
+                # --- Initialize if needed
+                if type(fdef) is int:
+                    rets = self.fdefs[fdef]['return'].values()
+                    fdef = funcs.init([self.fdefs[fdef]])
+                    self.col_to_fdef.update({k: fdef for k in rets})
+
+                fdefs += fdef
+
+        return fdefs
 
     # ===================================================================
     # FNAMES FUNCTIONS 
@@ -574,7 +622,7 @@ class DB():
 
         return pd.concat(dfs, axis=0)
 
-    def apply_row(self, sid, fdefs, load=None, fnames=None, header=None, replace=False, clear_arrays=False):
+    def apply_row(self, sid, fdefs, load=None, fnames=None, header=None, replace=False, clear_arrays=True):
         """
         Method to apply a series of lambda functions to single row
 
@@ -598,18 +646,15 @@ class DB():
             if load is not None:
                 to_load = {v: fnames[v] for v in kwargs_.values() if v in fnames and type(fnames[v]) is str}
                 for key, fname in to_load.items():
-                    if os.path.isfile(fname):
+                    if os.path.exists(fname):
                         fnames[key] = load(fname)
                         if type(fnames[key]) is tuple:
                             fnames[key] = fnames[key][0]
 
                     else:
-                        # --- Find / init fdefs
-
-                        # --- Apply row
+                        # --- Recursively create new fnames 
+                        fdefs = self.find_fdefs(cols=key)
                         df_ = self.apply_row(sid, fdefs, load=load, fnames=fnames, header=header, replace=replace, clear_arrays=True)
-
-                        # --- Update fnames
                         fnames.update({k: v for k, v in df_.iloc[0].items() if k in fnames})
 
             # --- Ensure all kwargs values are hashable
@@ -643,8 +688,8 @@ class DB():
 
                         # --- Check default methods
                         for method in ['to_hdf5', 'to_json']:
-                            if hasattr(cols.values[0], method):
-                                getattr(cols.values[0], method)(fnames[key])
+                            if hasattr(col.values[0], method):
+                                getattr(col.values[0], method)(fnames[key])
                                 break
 
                         if clear_arrays:
