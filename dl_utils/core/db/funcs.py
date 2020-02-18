@@ -1,41 +1,72 @@
+import os, importlib
 import numpy as np
 
-def init(funcs_def='mr_train', **kwargs):
+def init(fdefs='mr_train', **kwargs):
     """
-    Method to to prepare **kwargs for db.apply(...)
+    Method to to prepare function definitions list 
     
     :params
 
-      (str)  funcs_def = 'mr_train', 'ct_train', ... OR
+      (str)  fdefs = 'mr_train', 'ct_train', ... OR
 
-      (list) funcs_def = [{
+      (list) fdefs = [{
 
-        'func': 'coord', 'stats', ... OR lambda function,
-        'kwargs': {
-            kwargs_0: colkey_0,
-            kwargs_1: colkey_1,
-            ...},
+        'lambda': 'coord', 'stats', ... OR lambda function,
+        'python': {'file': ..., 'name': ...}
+        'kwargs': {...},
+        'return': {...}
 
         }]
 
-        kwargs_0 ==> named argument of lambda function
-        colkey_0 ==> column name to feed into kwargs
+    :return
+
+      (list) fdefs : fully initialized function definitions
 
     """
-    if type(funcs_def) is str:
-        funcs_def = get_default_funcs_def(funcs_def, **kwargs)
+    if type(fdefs) is str:
+        fdefs = get_default_fdefs(name=fdefs, **kwargs)
 
-    assert type(funcs_def) is list
+    assert type(fdefs) is list
 
-    # --- Update funcs
+    # --- Register custom functions 
     update(kwargs.get('FUNCS', {}))
 
-    # --- Parse apply kwargs
-    return {
-        'mask': kwargs.get('mask', None),
-        'load': kwargs.get('load', None),
-        'funcs': [FUNCS.get(d['func'], d['func']) for d in funcs_def],
-        'kwargs': [d['kwargs'] for d in funcs_def]}
+    # --- Parse 
+    fdefs_ = []
+
+    for fdef in fdefs:
+
+        fdef = {**{
+            'lambda': None,
+            'python': None,
+            'kwargs': {},
+            'return': None}, **fdef}
+
+        if type(fdef['lambda']) is str:
+            fdef['lambda'] = FUNCS.get(fdef['lambda'], None)
+
+        py = fdef.pop('python')
+
+        if not hasattr(fdef['lambda'], '__call__') and type(py) is dict:
+            assert 'file' in py 
+            assert 'name' in py 
+            fdef['lambda'] = init_python(py_file=py['file'], py_name=py['name'])
+
+        assert fdef['lambda'] is not None
+
+        fdefs_.append(fdef)
+
+    return fdefs_ 
+
+def init_python(py_file, py_name):
+
+    # --- Convert file path to relative import
+    if os.path.exists(py_file):
+        py_file = '.'.join(py_file.split('/')[1:-1])
+
+    module = importlib.import_module(py_file)
+
+    return getattr(module, py_name, None)
 
 def update(funcs):
     """
@@ -96,29 +127,29 @@ FUNCS = {
 # DEFAULT FUNCS_DEF
 # ============================================================
 
-def get_default_funcs_def(func_def, dats=['dat'], lbls=['lbl'], classes=2, **kwargs):
+def get_default_fdefs(name, dats=['dat'], lbls=['lbl'], classes=2, **kwargs):
 
-    if func_def not in ['mr_train', 'xr_train', 'ct_train']:
+    if name not in ['mr_train', 'xr_train', 'ct_train']:
         return []
 
     # --- Create generic label-derived stats
-    fdef = [{
-        'func': 'coord',
+    fdefs = [{
+        'lambda': 'coord',
         'kwargs': {'arr': lbls[0]}}]
 
-    fdef += [{
-        'func': 'label',
+    fdefs += [{
+        'lambda': 'label',
         'kwargs': {'arr': l, 'name': '!' + l, 'classes': classes}
         } for l in lbls]
 
     # --- Add data-specific stats (if needed)
-    if func_def in ['mr_train', 'xr_train']:
+    if name in ['mr_train', 'xr_train']:
 
-        fdef = fdef[0:1] + [{
-            'func': 'stats',
+        fdefs = fdefs[0:1] + [{
+            'lambda': 'stats',
             'kwargs': {'arr': d, 'name': '!' + d}
-            } for d in dats] + fdef[1:]
+            } for d in dats] + fdefs[1:]
 
-    return fdef
+    return fdefs
 
 # ============================================================

@@ -1,5 +1,6 @@
 import os, yaml, numpy as np, pandas as pd, tarfile
 from .query import find_matching_files
+from . import funcs
 from ..general import printd, printp
 
 # ===================================================================
@@ -163,8 +164,8 @@ class DB():
             files = {**self.files, **(files or {})} 
 
         if self.paths['code'] != '':
-            self.files['csv'] = files['csv'] or '/csvs/db.csv.gz'
-            self.files['yml'] = files['yml'] or '/ymls/db.yml'
+            self.files['csv'] = files['csv'] or '/csvs/db-all.csv.gz'
+            self.files['yml'] = files['yml'] or '/ymls/db-all.yml'
 
     def get_files(self):
         """
@@ -517,21 +518,37 @@ class DB():
 
         return range(sp[split], sp[split + 1]), status
 
-    def apply(self, funcs, kwargs, load=None, mask=None, indices=None, replace=False):
+    def apply(self, fdefs, load=None, mask=None, indices=None, flush=False, replace=False, **kwargs):
         """
-        Method to apply a series of funcs to entire spreadsheet (or partial defined by mask) 
+        Method to apply a series of lambda functions
+    
+        :params
+
+          (str)  fdefs = 'mr_train', 'ct_train', ... OR
+
+          (list) fdefs = [{
+
+            'lambda': 'coord', 'stats', ... OR lambda function,
+            'python': {'file': ..., 'name': ...}
+            'kwargs': {...},
+            'return': {...}
+
+            }]
+
+        See dl_utils.db.funcs.init(...) for more information about fdefs list
 
         """
+        fdefs = funcs.init(fdefs, **kwargs)
+
         dfs = []
-
-        for sid, fnames, header in self.cursor(mask=mask, indices=indices):
-            dfs.append(self.apply_row(sid, funcs, kwargs, load=load, fnames=fnames, header=header, replace=replace))
+        for sid, fnames, header in self.cursor(mask=mask, indices=indices, flush=flush):
+            dfs.append(self.apply_row(sid, fdefs, load=load, fnames=fnames, header=header, replace=replace))
 
         return pd.concat(dfs, axis=0)
 
-    def apply_row(self, sid, funcs, kwargs, load=None, fnames=None, header=None, replace=False):
+    def apply_row(self, sid, fdefs, load=None, fnames=None, header=None, replace=False):
         """
-        Method to apply a series of funcs to single row
+        Method to apply a series of lambda functions to single row
 
         """
         if fnames is None:
@@ -543,7 +560,11 @@ class DB():
             header = self.header.loc[sid] 
 
         df = pd.DataFrame()
-        for func, kwargs_ in zip(funcs, kwargs):
+        for fdef in fdefs:
+
+            lambda_ = fdef['lambda']
+            kwargs_ = fdef['kwargs']
+            return_ = fdef['return']
 
             # --- Load all fnames if load function is provided
             if load is not None:
@@ -560,16 +581,17 @@ class DB():
             fs = {k: fnames[v] for k, v in kwargs_.items() if v in fnames}
             hs = {k: header[v] for k, v in kwargs_.items() if v in header}
 
-            ds = func(**{**kwargs_, **fs, **hs})
+            ds = lambda_(**{**kwargs_, **fs, **hs})
 
             # --- Make iterable
             if df.size == 0:
                 ds = {k: v if hasattr(v, '__iter__') else [v] for k, v in ds.items()}
 
             # --- Update df
-            keys = sorted(ds.keys())
+            return_ = return_ or {k: k for k in ds.keys()}
+            keys = sorted(return_.keys())
             for key in keys:
-                df[key] = ds[key]
+                df[return_[key]] = ds[key]
 
         df.index = [sid] * df.shape[0]
         df.index.name = 'sid'
@@ -637,7 +659,8 @@ class DB():
 
     def create_valid_column(self, df=None, folds=5):
 
-        df = df or self.header
+        if df is None:
+            df = self.header
 
         v = np.arange(df.shape[0]) % folds 
         v = v[np.random.permutation(v.size)]
