@@ -68,6 +68,9 @@ class DB():
         paths = {}
         args_ = {}
 
+        files['csv'] = kwargs.get('db_csv', None)
+        files['yml'] = kwargs.get('db_yml', None)
+
         for arg in args:
             if type(arg) is str:
                 if os.path.isdir(arg):
@@ -256,7 +259,7 @@ class DB():
     # REFRESH | SYNC WITH FILE SYSTEM 
     # ===================================================================
 
-    def refresh(self, cols=None, load=None, update_query=False, **kwargs):
+    def refresh(self, cols=None, fdefs=None, load=None, update_query=False, **kwargs):
         """
         Method to refresh DB() object 
 
@@ -265,13 +268,18 @@ class DB():
         if self.fnames.shape[0] == 0 or update_query:
             self.update_query()
 
-        # --- Create columns 
-        cols = cols or []
-        if type(cols) is str:
-            cols = [cols]
+        if fdefs is not None:
+            # --- Create columns via fdefs
+            self.create_column(fdefs=fdefs, load=load, **kwargs)
 
-        for col in cols:
-            self.create_column(col=col, load=load, **kwargs)
+        else:
+            # --- Create columns via defs
+            cols = cols or []
+            if type(cols) is str:
+                cols = [cols]
+
+            for col in cols:
+                self.create_column(col=col, load=load, **kwargs)
 
     def update_query(self, matches=None):
         """
@@ -296,17 +304,24 @@ class DB():
         self.fnames.index.name = 'sid'
         self.header.index.name = 'sid'
 
-    def create_column(self, col, load=None, mask=None, indices=None, flush=False, replace=True, skip_existing=True, **kwargs):
+    def create_column(self, col=None, fdefs=None, load=None, mask=None, indices=None, flush=False, replace=True, skip_existing=True, **kwargs):
         """
         Method to create column
 
         """
-        fdefs = self.find_fdefs(col)
+        # --- Initialize fdefs
+        fdefs = self.find_fdefs(col) if fdefs is None else funcs.init(fdefs)
+
         if len(fdefs) == 0:
             return
 
         for sid, fnames, header in self.cursor(mask=mask, indices=indices, flush=flush):
-            update = not os.path.exists(fnames[col]) if col in fnames else header[col] == ''
+
+            if col is not None:
+                update = not os.path.exists(fnames[col]) if col in fnames else header[col] == ''
+            else:
+                update = True
+
             if update or not skip_existing:
                 self.apply_row(sid, fdefs, load=load, fnames=fnames, header=header, replace=replace)
 
@@ -354,17 +369,22 @@ class DB():
     # FNAMES FUNCTIONS 
     # ===================================================================
 
-    def exists(self, cols=None):
+    def exists(self, cols=None, verbose=True):
         """
         Method to check if fnames exists
 
         """
+        exists = {}
         fnames = self.fnames_expand(cols=cols)
         ljust = max([len(c) for c in fnames.columns])
 
         for col in fnames.columns:
-            found = sum(fnames[col].apply(lambda x : os.path.exists(x)))
-            printd('COLUMN: {} | {:06d} / {:06d} exists'.format(col.ljust(ljust), found, fnames[col].shape[0]))
+            exists[col] = fnames[col].apply(lambda x : os.path.exists(x)).to_numpy()
+
+            if verbose:
+                printd('COLUMN: {} | {:06d} / {:06d} exists'.format(col.ljust(ljust), exists[col].sum(), fnames[col].shape[0]))
+
+        return exists
 
     def fnames_like(self, suffix, like=None):
         """
@@ -381,16 +401,16 @@ class DB():
 
         """
         root = self.paths['data']
-        cols = cols or self.fnames.columns
 
-        fnames = self.fnames[cols]
+        if cols is None:
+            cols = self.fnames.columns
 
         for col in cols:
             if col in self.sform:
-                fnames[col] = [self.sform[col].format(root=root, sid=s) if f == '' else f 
-                    for s, f in zip(self.fnames.index, fnames[col])]
+                self.fnames[col] = [self.sform[col].format(root=root, sid=s) if f == '' else f 
+                    for s, f in zip(self.fnames.index, self.fnames[col])]
 
-        return fnames
+        return self.fnames[cols]
 
     def fnames_expand_single(self, sid, fnames=None):
         """
@@ -766,7 +786,7 @@ class DB():
     # EXTRACT and SERIALIZE 
     # ===================================================================
 
-    def to_json(self, prefix='local://', fnames=None, header=None, max_rows=None):
+    def to_json(self, prefix='local://', fnames=None, header=None, max_rows=None, exists_only=True):
         """
         Method to serialize contents of DB to JSON
 
@@ -798,19 +818,25 @@ class DB():
         }
 
         """
-        fnames = self.fnames[fnames or self.fnames.columns]
+        # --- Prepare fnames, header
+        fnames = self.fnames_expand(cols=fnames)
         header = self.header[header or self.header.columns]
+        column = fnames.columns[0]
 
-        # --- Prepare fnames
-        rename = lambda x : '{}{}{}'.format(prefix, self.paths['data'], x)
-        for col in fnames:
-            fnames[col] = fnames[col].apply(rename)
+        # --- Keep existing files
+        if exists_only:
+            mask = np.ones(fnames.shape[0], dtype='bool')
+            for e in self.exists(cols=fnames.columns, verbose=False).values():
+                mask = mask & e
+
+            fnames = fnames[mask]
+            header = header[mask]
 
         fnames = fnames.to_dict(orient='index')
         header = header.to_dict(orient='index')
 
         # --- Extract sid, fname
-        extract = lambda k : {'sid': k, 'fname': fnames[k].get('dat', None)}
+        extract = lambda k : {'sid': k, 'fname': fnames[k][column]}
         header = {k: {**v, **extract(k)} for k, v in header.items()} 
 
         header = {k: {'header': v} for k, v in header.items()}

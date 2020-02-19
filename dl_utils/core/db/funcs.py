@@ -63,8 +63,10 @@ def init(fdefs='mr_train', **kwargs):
 def init_python(py_file, py_name):
 
     # --- Convert file path to relative import
-    if os.path.exists(py_file):
-        py_file = '.'.join(py_file.split('/')[:-1])
+    if py_file[-3:] == '.py':
+        py_file = py_file[:-3]
+    if '/' in py_file:
+        py_file = '.'.join(py_file.split('/')[1:])
 
     module = importlib.import_module(py_file)
 
