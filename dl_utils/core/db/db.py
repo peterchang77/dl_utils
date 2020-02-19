@@ -202,7 +202,7 @@ class DB():
     # CSV | LOAD and PREPARE
     # ===================================================================
 
-    def load_csv(self, fname=None, **kwargs):
+    def load_csv(self, fname=None, lazy=True, **kwargs):
         """
         Method to load CSV file
 
@@ -224,6 +224,10 @@ class DB():
 
         # --- Split df into fnames and header 
         self.fnames, self.header = self.df_split(df)
+
+        # --- Load full fnames 
+        if not lazy:
+            self.fnames = self.fnames_expand()
 
     def df_split(self, df):
         """
@@ -369,7 +373,7 @@ class DB():
     # FNAMES FUNCTIONS 
     # ===================================================================
 
-    def exists(self, cols=None, verbose=True):
+    def exists(self, cols=None, verbose=True, ret=False):
         """
         Method to check if fnames exists
 
@@ -384,7 +388,8 @@ class DB():
             if verbose:
                 printd('COLUMN: {} | {:06d} / {:06d} exists'.format(col.ljust(ljust), exists[col].sum(), fnames[col].shape[0]))
 
-        return exists
+        if ret:
+            return exists
 
     def fnames_like(self, suffix, like=None):
         """
@@ -408,12 +413,17 @@ class DB():
         if type(cols) is str:
             cols = [cols]
 
+        fnames = pd.DataFrame(index=self.fnames.index)
+        fnames.index.name = 'sid'
+
         for col in cols:
             if col in self.sform:
-                self.fnames[col] = [self.sform[col].format(root=root, sid=s) if f == '' else f 
+                fnames[col] = [self.sform[col].format(root=root, sid=s) if f == '' else f 
                     for s, f in zip(self.fnames.index, self.fnames[col])]
+            else:
+                fnames[col] = self.fnames[col]
 
-        return self.fnames[cols]
+        return fnames 
 
     def fnames_expand_single(self, sid, fnames=None):
         """
@@ -426,7 +436,7 @@ class DB():
         return {k: self.sform[k].format(root=self.paths['data'], sid=sid) 
             if (v == '' and k in self.sform) else v for k, v in fnames.items()}
 
-    def restack(self, cols, on, marker=None):
+    def restack(self, columns_on, marker=None):
         """
         Method to stack specified columns on existing fname
 
@@ -434,8 +444,6 @@ class DB():
 
         :params
 
-          (list) cols   : columns to stack
-          (str)  on     : existing fname to stack on
           (str)  marker : if provided, create new header indicating stack status
 
         """
@@ -447,18 +455,21 @@ class DB():
             self.header[marker] = False
 
         # --- Create baseline fnames
-        cols_ = [c for c in self.fnames.columns if c not in cols]
+        cols_ = [c for cols in columns_on.values() for c in cols]
+        cols_ = [c for c in self.fnames.columns if c not in cols_]
         fnames.append(self.fnames[cols_])
         header.append(self.header)
 
-        for col in cols:
+        n = len(next(iter(columns_on.values())))
+        for i in range(n):
 
             f = fnames[0].copy()
             h = header[0].copy()
 
-            f[on] = self.fnames[col]
+            for on, cols in columns_on.items():
+                f[on] = self.fnames[cols[i]]
 
-            index = ['{}-{}'.format(i, col) for i in f.index]
+            index = ['{}-{:03d}'.format(sid, i) for sid in f.index]
             f.index = index
             h.index = index
             f.index.name = 'sid'
@@ -693,7 +704,9 @@ class DB():
                 ds = {k: v if hasattr(v, '__iter__') else [v] for k, v in ds.items()}
 
             # --- Update df
-            return_ = return_ or {k: k for k in ds.keys()}
+            if len(return_) == 0:
+                return_ = {k: k for k in ds.keys()}
+
             keys = sorted(return_.keys())
             for key in keys:
                 df[return_[key]] = ds[key]
@@ -830,7 +843,7 @@ class DB():
 
         # --- Keep existing files
         if exists_only:
-            mask = next(iter(self.exists(cols=[dat], verbose=False).values()))
+            mask = next(iter(self.exists(cols=[dat], verbose=False, ret=True).values()))
             fnames = fnames[mask]
             header = header[mask]
 

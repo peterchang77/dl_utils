@@ -40,7 +40,7 @@ def init(fdefs='mr_train', **kwargs):
             'lambda': None,
             'python': None,
             'kwargs': {},
-            'return': None}, **fdef}
+            'return': {}}, **fdef}
 
         if type(fdef['lambda']) is str:
             fdef['lambda'] = FUNCS.get(fdef['lambda'], None)
