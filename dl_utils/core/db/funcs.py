@@ -88,7 +88,7 @@ def calculate_coord(arr):
 
     return {'coord': np.arange(z) / (z - 1)}
 
-def calculate_stats(arr, name, axis=(0, 1, 2, 3)):
+def calculate_stats(arr, name='!lbl', axis=(0, 1, 2, 3)):
     """
     Method to calculate image statistics across channels: mu, sd
 
@@ -101,7 +101,7 @@ def calculate_stats(arr, name, axis=(0, 1, 2, 3)):
 
     return {**mu, **sd}
 
-def calculate_label(arr, name, classes, axis=(1, 2, 3)):
+def calculate_label(arr, name='!lbl', classes=2, axis=(1, 2, 3)):
     """
     Method to calculate if label class is present 
 

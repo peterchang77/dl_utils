@@ -68,8 +68,8 @@ class DB():
         paths = {}
         args_ = {}
 
-        files['csv'] = kwargs.get('db_csv', None)
-        files['yml'] = kwargs.get('db_yml', None)
+        files['csv'] = kwargs.get('csv', None)
+        files['yml'] = kwargs.get('yml', None)
 
         for arg in args:
             if type(arg) is str:
@@ -404,6 +404,9 @@ class DB():
 
         if cols is None:
             cols = self.fnames.columns
+
+        if type(cols) is str:
+            cols = [cols]
 
         for col in cols:
             if col in self.sform:
@@ -786,7 +789,7 @@ class DB():
     # EXTRACT and SERIALIZE 
     # ===================================================================
 
-    def to_json(self, prefix='local://', fnames=None, header=None, max_rows=None, exists_only=True):
+    def to_json(self, dat, lbl=None, hdr=None, prefix='local://', max_rows=None, exists_only=True):
         """
         Method to serialize contents of DB to JSON
 
@@ -818,25 +821,31 @@ class DB():
         }
 
         """
+        # --- Prepare cols 
+        cols = {dat: 'dat'} if lbl is None else {dat: 'dat', lbl: 'lbl'} 
+
         # --- Prepare fnames, header
-        fnames = self.fnames_expand(cols=fnames)
-        header = self.header[header or self.header.columns]
-        column = fnames.columns[0]
+        fnames = self.fnames_expand(cols=cols)
+        header = self.header[hdr or self.header.columns]
 
         # --- Keep existing files
         if exists_only:
-            mask = np.ones(fnames.shape[0], dtype='bool')
-            for e in self.exists(cols=fnames.columns, verbose=False).values():
-                mask = mask & e
-
+            mask = next(iter(self.exists(cols=[dat], verbose=False).values()))
             fnames = fnames[mask]
             header = header[mask]
+
+        # --- Add prefix
+        for col in fnames.columns:
+            fnames[col] = ['{}{}'.format(prefix, f) for f in fnames[col]]
+
+        # --- Change names
+        fnames = fnames.rename(columns=cols)
 
         fnames = fnames.to_dict(orient='index')
         header = header.to_dict(orient='index')
 
         # --- Extract sid, fname
-        extract = lambda k : {'sid': k, 'fname': fnames[k][column]}
+        extract = lambda k : {'sid': k, 'fname': fnames[k]['dat']}
         header = {k: {**v, **extract(k)} for k, v in header.items()} 
 
         header = {k: {'header': v} for k, v in header.items()}
