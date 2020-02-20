@@ -1,4 +1,4 @@
-import os, yaml, requests
+import os, glob, yaml, requests
 from zipfile import ZipFile
 from dl_utils.general import *
 from dl_utils.db import DB
@@ -80,9 +80,9 @@ def unzip(dst, path, overwrite):
 def set_paths(path):
 
     # --- Set db path
-    db = '{}/ymls/db.yml'.format(path)
-    if os.path.exists(db):
-        db = DB(db)
+    ymls = glob.glob('{}/ymls/db*.yml'.format(path))
+    for yml in ymls:
+        db = DB(yml=yml)
         db.set_paths({'data': path, 'code': path})
         db.to_yml(to_csv=False)
     
