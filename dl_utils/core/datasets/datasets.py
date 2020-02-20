@@ -80,15 +80,23 @@ def unzip(dst, path, overwrite):
 def set_paths(path):
 
     # --- Set db path
-    ymls = glob.glob('{}/ymls/db*.yml'.format(path))
+    ymls = sorted(glob.glob('{}/ymls/db*.yml'.format(path)))
     for yml in ymls:
         db = DB(yml=yml)
         db.set_paths({'data': path, 'code': path})
         db.to_yml(to_csv=False)
+
+    # --- Set _db path
+    _db = [] 
+    for suffix in ['/db-sum', '/db.', '']:
+        _db = [y for y in ymls if suffix in y]
+        if len(_db) > 0:
+            _db = _db[0]
+            break
     
     # --- Set client path
     client = '{}/ymls/client.yml'.format(path)
-    if os.path.exists(client):
+    if os.path.exists(client) and len(_db) > 0:
         c = yaml.load(open(client, 'r'), Loader=yaml.FullLoader)
-        c['_db'] = '{}/ymls/db.yml'.format(path)
+        c['_db'] = _db 
         yaml.dump(c, open(client, 'w'))
