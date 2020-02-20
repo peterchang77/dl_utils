@@ -418,23 +418,32 @@ class DB():
 
         for col in cols:
             if col in self.sform:
-                fnames[col] = [self.sform[col].format(root=root, sid=s) if f == '' else f 
+                fnames[col] = [self.sform[col].format(root=root, curr=f, sid=s)
                     for s, f in zip(self.fnames.index, self.fnames[col])]
             else:
                 fnames[col] = self.fnames[col]
 
         return fnames 
 
-    def fnames_expand_single(self, sid, fnames=None):
+    def fnames_expand_single(self, sid=None, index=None, fnames=None):
         """
         Method to expand a single fnames dict based on str formats (sform)
 
         """
         if fnames is None:
-            fnames = self.fnames.loc[sid].to_dict()
 
-        return {k: self.sform[k].format(root=self.paths['data'], sid=sid) 
-            if (v == '' and k in self.sform) else v for k, v in fnames.items()}
+            if index is not None:
+                fnames = self.fnames.iloc[index].to_dict()
+
+            else: 
+                assert sid is not None
+                assert self.fnames.index.is_unique
+                fnames = self.fnames.loc[sid].to_dict()
+
+        fnames = fnames or {}
+
+        return {k: self.sform[k].format(root=self.paths['data'], curr=v, sid=sid) 
+            if k in self.sform else v for k, v in fnames.items()}
 
     def restack(self, columns_on, marker=None):
         """
@@ -563,12 +572,10 @@ class DB():
         Method to return single row at self.fnames and self.header
 
         """
-        if sid is None:
-            assert index is not None
-            sid = self.fnames.index[index]
+        fnames = self.fnames_expand_single(sid=sid, index=index)
+        header = self.header.loc[sid].to_dict() if sid is not None else self.header.iloc[index].to_dict()
 
-        fnames = self.fnames_expand_single(sid=sid)
-        return {**fnames, **self.header.loc[sid].to_dict()} 
+        return {**fnames, **header} 
 
     def cursor(self, mask=None, indices=None, split=None, splits=None, status='Iterating | {:06d}', verbose=True, flush=False):
         """
