@@ -82,7 +82,7 @@ def set_paths(path):
     # --- Set db path
     db = '{}/ymls/db.yml'.format(path)
     if os.path.exists(db):
-        db = DB()
+        db = DB(db)
         db.set_paths({'data': path, 'code': path})
         db.to_yml(to_csv=False)
     
