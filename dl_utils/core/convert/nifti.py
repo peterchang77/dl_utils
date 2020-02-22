@@ -38,6 +38,8 @@ def from_nifti(src, dst=None):
     if dst is not None:
         io.save(dst, data, meta)
 
+    return data, meta
+
 def to_nifti(src, dst=None):
     """
     Method to convert alternate format to *.nii.gz
