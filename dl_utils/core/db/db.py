@@ -308,7 +308,7 @@ class DB():
         self.fnames.index.name = 'sid'
         self.header.index.name = 'sid'
 
-    def create_column(self, col=None, fdefs=None, load=None, mask=None, indices=None, flush=False, replace=True, skip_existing=True, **kwargs):
+    def create_column(self, col=None, fdefs=None, load=None, mask=None, indices=None, split=None, splits=None, flush=False, replace=True, skip_existing=True, **kwargs):
         """
         Method to create column
 
@@ -319,7 +319,7 @@ class DB():
         if len(fdefs) == 0:
             return
 
-        for sid, fnames, header in self.cursor(mask=mask, indices=indices, flush=flush):
+        for sid, fnames, header in self.cursor(mask=mask, indices=indices, flush=flush, split=split, splits=splits):
 
             if col is not None:
                 update = not os.path.exists(fnames[col]) if col in fnames else header[col] == ''
@@ -716,7 +716,7 @@ class DB():
 
             keys = sorted(return_.keys())
             for key in keys:
-                df[return_[key]] = ds[key]
+                df[return_[key]] = ds.get(key, None)
 
         df.index = [sid] * df.shape[0]
         df.index.name = 'sid'

@@ -31,6 +31,9 @@ def from_nifti(src, dst=None):
     data = img_raw.get_fdata()
     data = np.swapaxes(data, 0, 2)
 
+    if data.ndim == 3:
+        data = np.expand_dims(data, axis=-1)
+
     # --- Invert affine
     meta = {'affine': invert_affine(img_aff.affine)}
 
