@@ -228,6 +228,7 @@ class DB():
         # --- Load full fnames 
         if not lazy:
             self.fnames = self.fnames_expand()
+            self.sform = {}
 
     def df_split(self, df):
         """
@@ -434,6 +435,7 @@ class DB():
 
             if index is not None:
                 fnames = self.fnames.iloc[index].to_dict()
+                sid = self.fnames.index[index]
 
             else: 
                 assert sid is not None
@@ -788,6 +790,7 @@ class DB():
         # --- Serialize
         db.set_paths(self.paths, update_fnames=False)
         db.set_files(yml)
+        db.sform = {k: self.sform[k] for k in fnames if k in self.sform}
         db.to_yml()
 
         # --- Final output
