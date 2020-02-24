@@ -697,8 +697,9 @@ class DB():
                     else:
                         # --- Recursively create new fnames 
                         fdefs = self.find_fdefs(cols=key)
-                        df_ = self.apply_row(sid, fdefs, load=load, fnames=fnames, header=header, replace=replace, clear_arrays=True)
-                        fnames.update({k: v for k, v in df_.iloc[0].items() if k in fnames})
+                        if len(fdefs) > 0: 
+                            df_ = self.apply_row(sid, fdefs, load=load, fnames=fnames, header=header, replace=replace, clear_arrays=True)
+                            fnames.update({k: v for k, v in df_.iloc[0].items() if k in fnames})
 
             # --- Ensure all kwargs values are hashable
             kwargs_ = {k: tuple(v) if type(v) is list else v for k, v in kwargs_.items()}
