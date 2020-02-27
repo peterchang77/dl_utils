@@ -127,15 +127,21 @@ class DB():
         if type(paths) is str:
             paths = {'data': paths}
 
-        TEMPS = self.paths.copy()
-
         paths = {**self.paths, **paths} 
         paths = {k: os.path.abspath(p) if p != '' else '' for k, p in paths.items()}
-        self.paths = paths
 
         if 'data' in paths and update_fnames:
+
+            fnames = self.fnames_expand_single(index=0)
+            n = len(paths['data'])
+
             for col in self.fnames:
-                self.fnames[col] = self.fnames[col].apply(lambda x : (TEMPS['data'] + x).replace(paths['data'], ''))
+                sform = self.sform.get(col, '{curr}')
+                if '{root}' not in sform:
+                    if paths['data'] in fnames[col]:
+                        self.fnames[col] = self.fnames_expand(cols=[col]).apply(lambda x : x[n:])
+
+        self.paths = paths
 
         if 'code' in paths:
             self.set_files()
