@@ -928,7 +928,7 @@ class DB():
         for col in cols:
             assert col in self.fnames
 
-        with tarfile.open(fname, 'w:gz') as t:
+        with tarfile.open(fname, 'w:gz', dereference=True) as t:
             for sid, fnames, header in self.cursor(mask=mask, status='Compressing | {:06d}'):
                 for col in cols:
                     if os.path.exists(fnames[col]):
