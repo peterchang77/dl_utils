@@ -139,7 +139,7 @@ class DB():
                 sform = self.sform.get(col, '{curr}')
                 if '{root}' not in sform:
                     if paths['data'] in fnames[col]:
-                        self.fnames[col] = self.fnames_expand(cols=[col]).apply(lambda x : x[n:])
+                        self.fnames[col] = self.fnames_expand(cols=[col]).applymap(lambda x : x[n:])
 
         self.paths = paths
 
@@ -453,7 +453,7 @@ class DB():
         return {k: self.sform[k].format(root=self.paths['data'], curr=v, sid=sid) 
             if k in self.sform else v for k, v in fnames.items()}
 
-    def restack(self, columns_on, marker=None):
+    def restack(self, columns_on, marker=None, suffix=''):
         """
         Method to stack specified columns on existing fname
 
@@ -461,7 +461,8 @@ class DB():
 
         :params
 
-          (str)  marker : if provided, create new header indicating stack status
+          (str) marker : if provided, create new header indicating stack status
+          (str) suffix : if provided, suffix to add to index e.g. {sid}-{suffx}{:03d}
 
         """
         fnames = []
@@ -486,7 +487,7 @@ class DB():
             for on, cols in columns_on.items():
                 f[on] = self.fnames[cols[i]]
 
-            index = ['{}-{:03d}'.format(sid, i) for sid in f.index]
+            index = ['{}-{}{:03d}'.format(sid, suffix, i) for sid in f.index]
             f.index = index
             h.index = index
             f.index.name = 'sid'
@@ -497,6 +498,10 @@ class DB():
             
             fnames.append(f)
             header.append(h)
+
+        # --- Update index of 0th index
+        fnames[0].index = ['{}-{}org'.format(sid, suffix) for sid in fnames[0].index]
+        header[0].index = fnames[0].index 
 
         # -- Combine
         self.fnames = pd.concat(fnames, axis=0)
