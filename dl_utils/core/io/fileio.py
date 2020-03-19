@@ -39,9 +39,10 @@ def load(fname, json_safe=False, **kwargs):
     verbose = kwargs.get('verbose', True)
 
     # --- Check if file exists
-    if not os.path.exists(fname):
-        printd('ERROR file does not exist: %s' % fname, verbose=verbose)
-        return None, None
+    if type(fname) is str:
+        if not os.path.exists(fname):
+            printd('ERROR file does not exist: %s' % fname, verbose=verbose)
+            return None, None
 
     # --- Check file ext
     file_type = parse_ext(fname)

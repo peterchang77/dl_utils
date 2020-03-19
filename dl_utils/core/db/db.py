@@ -507,6 +507,67 @@ class DB():
         self.fnames = pd.concat(fnames, axis=0)
         self.header = pd.concat(header, axis=0)
 
+    def init_sform(self, subdirs=None, json=[], cols=None):
+        """
+        Method to initialize default sform based of current fnames columns
+
+        Default fnames column format:
+        
+          [base]-[dirs](-[suffix])
+
+          base ==> used for file basename e.g. dat-xxx = dat.hdf5
+          dirs ==> used for subdirectory (inferred by subdirs mapping)
+
+        Default sform format:
+
+          '{root}/proc/{subdir}/{sid}/{base}.{ext}'
+
+        Default extension is *.hdf5 unless base is in JSON list
+
+        """
+        cols = cols or self.fnames.columns
+        json += ['pts', 'box', 'vec']
+
+        # --- Default subdirs mappings
+        subdirs = subdirs or {}
+        subdirs['dcm'] = 'dcm'
+        subdirs['raw'] = 'raw'
+
+        sform = {}
+
+        for col in cols:
+            parts = len(col.split('-'))
+            if parts > 1:
+
+                # --- Infer subdirectory
+                subdir = col.split('-')[1]
+                if subdir in subdirs:
+                    subdir = subdirs[subdir]
+
+                # --- Infer basename
+                base = col.split('-')[0]
+                if parts > 2:
+                    base += '-' + '-'.join(col.split('-')[2:])
+
+                if base == 'dcm':
+
+                    sform[col] = '{root}/proc/dcm/{sid}/'
+
+                else:
+
+                    # --- Infer extension
+                    ext = 'json' if col.split('-')[0] in json else 'hdf5'
+
+                    # --- Create sform
+                    sform[col] = '{{root}}/proc/{subdir}/{{sid}}/{base}.{ext}'.format(
+                        root='root',
+                        subdir=subdir,
+                        sid='sid',
+                        base=base,
+                        ext=ext) 
+
+        self.sform.update(sform)
+
     # ===================================================================
     # DATA AUGMENTATION 
     # ===================================================================
@@ -906,7 +967,7 @@ class DB():
         if fname is not None:
             os.makedirs(os.path.dirname(fname), exist_ok=True)
             with open(fname, 'w') as y:
-                yaml.dump(self.to_dict(), y)
+                yaml.dump(self.to_dict(), y, sort_keys=False)
 
         if to_csv:
             self.to_csv()
