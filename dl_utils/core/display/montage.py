@@ -1,8 +1,8 @@
 import numpy as np
 
-def montage(arr, squeeze=True):
+def montage(arr, N=None, squeeze=True):
     """
-    Method to to create a tiled N x N montage of input volume x
+    Method to create a tiled N x N montage of input volume x
 
     """
     if type(arr) is not np.ndarray:
@@ -21,20 +21,26 @@ def montage(arr, squeeze=True):
 
     z, y, x, c = arr.shape
 
-    N = int(np.ceil(np.sqrt(z)))
-    M = np.zeros((N * y, N * x, c), dtype=arr.dtype)
+    N = N or int(np.ceil(np.sqrt(z)))
+    Z = int(np.ceil(z / N ** 2))
+    M = np.zeros((Z, N * y, N * x, c), dtype=arr.dtype)
 
     n = 0
-    for y_ in range(N):
-        for x_ in range(N):
+    for z_ in range(Z):
+        for y_ in range(N):
+            for x_ in range(N):
 
-            yy = y_ * y
-            xx = x_ * x
-            M[yy:yy + y, xx:xx + x, :] = arr[n]
+                yy = y_ * y
+                xx = x_ * x
+                M[z_, yy:yy + y, xx:xx + x, :] = arr[n]
 
-            n += 1
+                n += 1
+                if n >= z: 
+                    break
             if n >= z: 
                 break
+        if n >= z: 
+            break
 
     if squeeze:
         M = M[..., 0]

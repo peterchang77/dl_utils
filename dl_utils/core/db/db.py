@@ -2,6 +2,7 @@ import os, yaml, numpy as np, pandas as pd, tarfile
 from .query import find_matching_files
 from . import funcs
 from ..general import printd, printp
+from ..display import montage
 
 # ===================================================================
 # OVERVIEW
@@ -38,6 +39,9 @@ class DB():
           (4) shell environment variables
 
         """
+        # --- Load custom functions
+        self.load_func = kwargs.pop('load', None) 
+
         # --- Parse args
         self.parse_args(*args, **kwargs)
 
@@ -742,6 +746,9 @@ class DB():
         Method to apply a series of lambda functions to single row
 
         """
+        # --- Set load func
+        load = load or self.load_func
+
         if fnames is None:
             sid = sid if sid in self.fnames.index else int(sid)
             fnames = self.fnames_expand_single(sid=sid)
@@ -826,6 +833,41 @@ class DB():
 
         """
         pass
+
+    def montage(self, dat, lbl=None, coord=(0.5, 0.5, 0.5), shape=(1, 0, 0), N=None, load=None, **kwargs):
+        """
+        Method to 
+
+        """
+        # --- Set load func
+        load = load or self.load_func
+        if load is None:
+            return
+
+        # --- Unravel tuples
+        unravel = lambda x : x[0] if type(x) is tuple else x
+
+        # --- Aggregate
+        dats = []
+        lbls = []
+
+        for sid, fnames, header in self.cursor(**kwargs):
+
+            # --- Load dat
+            d = unravel(load(fnames[dat], infos={'coord': coord, 'shape': shape}))
+            dats.append(d[0])
+
+            # --- Load lbl
+            if lbl is not None:
+                l = unravel(load(fnames[lbl], infos={'coord': coord, 'shape': shape})) 
+                lbls.append(l[0])
+
+        dats = montage(np.stack(dats), N=N)
+
+        if lbl is not None:
+            lbls = montage(np.stack(lbls), N=N)
+
+        return dats, lbls
 
     # ===================================================================
     # CREATE SUMMARY DB 
@@ -985,7 +1027,7 @@ class DB():
             os.makedirs(os.path.dirname(fname), exist_ok=True)
             df.to_csv(fname)
 
-    def compress(self, cols, mask=None, fname='./data.tar.gz'):
+    def compress(self, cols, mask=None, include_db=False, fname='./data.tar.gz'):
         """
         Method to create *.tar.gz archive of the specified column(s)
 
@@ -995,6 +1037,11 @@ class DB():
             assert col in self.fnames
 
         with tarfile.open(fname, 'w:gz', dereference=True) as t:
+
+            if include_db:
+                for fname in self.get_files().values():
+                    t.add(fname, arcname=fname.replace(self.paths['code'], ''))
+
             for sid, fnames, header in self.cursor(mask=mask, status='Compressing | {:06d}'):
                 for col in cols:
                     if os.path.exists(fnames[col]):

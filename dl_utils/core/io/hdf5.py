@@ -93,6 +93,17 @@ def load(fname, infos=None, **kwargs):
     """
     Method to load full array and meta dictionary
 
+    :params
+
+      (dict) infos : determines coord location and shape of loaded array
+
+        infos['coord'] ==> 3D coord (normalized) for center of loaded array
+        infos['shape'] ==> 3D tuple for shape of loaded array
+
+        For any infos['shape'] values that are 0, the entire axes is loaded
+
+        If infos is None, the entire volume is loaded
+
     """
     if not os.path.exists(fname):
         return None, {} 
@@ -123,7 +134,7 @@ def extract_data(f, infos):
     points = np.round(points)
 
     # --- Create slice bounds 
-    shapes = np.array(infos['shape'])
+    shapes = np.array([i if i > 0 else d for i, d in zip(infos['shape'], dshape)])
     slices = points - np.floor(shapes / 2) 
     slices = np.stack((slices, slices + shapes)).T
 
@@ -151,8 +162,13 @@ def check_infos(infos):
     if infos is not None:
 
         assert type(infos) is dict
-        assert 'point' in infos
-        assert 'shape' in infos
+
+        DEFAULTS = {
+            'point': [0.5, 0.5, 0.5],
+            'shape': [0, 0, 0]}
+
+        infos = {**DEFAULTS, **infos}
+
         assert len(infos['point']) == 3
         assert len(infos['shape']) == 3
 
