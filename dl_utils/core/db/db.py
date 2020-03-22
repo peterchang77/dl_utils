@@ -872,11 +872,11 @@ class DB():
                     dats[-1], lbls[-1] = func(dat=d, lbl=l, **kwargs)
 
         # --- Interleave dats
-        dats = interleave(np.stack(dats))
+        dats = interleave(np.stack(dats), N=N)
 
         # --- Interleave lbls
         if lbl is not None:
-            lbls = interleave(np.stack(lbls))
+            lbls = interleave(np.stack(lbls), N=N)
 
         return dats, lbls
 

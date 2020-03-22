@@ -68,6 +68,6 @@ def interleave(arrs, **kwargs):
     M = np.empty((s[0] * z, s[1], s[2]), dtype=arrs.dtype)
 
     for i in range(z):
-        M[i::s[1]] = mnts[i]
+        M[i::z] = mnts[i]
 
     return M
