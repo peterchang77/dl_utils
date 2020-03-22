@@ -1,2 +1,2 @@
 from .imshow import imshow
-from .montage import montage
+from .montage import montage, interleave

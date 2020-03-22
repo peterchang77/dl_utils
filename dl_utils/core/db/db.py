@@ -2,7 +2,7 @@ import os, yaml, numpy as np, pandas as pd, tarfile
 from .query import find_matching_files
 from . import funcs
 from ..general import printd, printp
-from ..display import montage
+from ..display import interleave
 
 # ===================================================================
 # OVERVIEW
@@ -655,7 +655,7 @@ class DB():
 
         return {**fnames, **header} 
 
-    def cursor(self, mask=None, indices=None, split=None, splits=None, status='Iterating | {:06d}', verbose=True, flush=False):
+    def cursor(self, mask=None, indices=None, split=None, splits=None, status='Iterating | {:06d}', verbose=True, flush=False, **kwargs):
         """
         Method to create Python generator to iterate through dataset
         
@@ -741,7 +741,7 @@ class DB():
 
         return pd.concat(dfs, axis=0)
 
-    def apply_row(self, sid, fdefs, load=None, fnames=None, header=None, replace=False, clear_arrays=True):
+    def apply_row(self, sid, fdefs, load=None, fnames=None, header=None, replace=False, clear_arrays=True, **kwargs):
         """
         Method to apply a series of lambda functions to single row
 
@@ -834,9 +834,9 @@ class DB():
         """
         pass
 
-    def montage(self, dat, lbl=None, coord=(0.5, 0.5, 0.5), shape=(1, 0, 0), N=None, load=None, **kwargs):
+    def montage(self, dat, lbl=None, coord=(0.5, 0.5, 0.5), shape=(1, 0, 0), N=None, load=None, func=None, **kwargs):
         """
-        Method to 
+        Method to load montage of database
 
         """
         # --- Set load func
@@ -848,24 +848,35 @@ class DB():
         unravel = lambda x : x[0] if type(x) is tuple else x
 
         # --- Aggregate
-        dats = []
-        lbls = []
+        dats, lbls = [], []
+
+        # --- Initialize default kwargs
+        if 'mask' not in kwargs and 'indices' not in kwargs and N is not None:
+            kwargs['indices'] = np.arange(N ** 2)
 
         for sid, fnames, header in self.cursor(**kwargs):
 
             # --- Load dat
-            d = unravel(load(fnames[dat], infos={'coord': coord, 'shape': shape}))
-            dats.append(d[0])
+            infos = {'coord': coord, 'shape': shape} if func is None else None
+            d = unravel(load(fnames[dat], infos=infos, **kwargs))
+            dats.append(d[:1])
 
             # --- Load lbl
             if lbl is not None:
-                l = unravel(load(fnames[lbl], infos={'coord': coord, 'shape': shape})) 
-                lbls.append(l[0])
+                infos = {'coord': coord, 'shape': shape} if func is None else None
+                l = unravel(load(fnames[lbl], infos=infos, **kwargs)) 
+                lbls.append(l[:1])
 
-        dats = montage(np.stack(dats), N=N)
+                # --- Apply label conversion and slice extraction function
+                if func is not None:
+                    dats[-1], lbls[-1] = func(dat=d, lbl=l, **kwargs)
 
+        # --- Interleave dats
+        dats = interleave(np.stack(dats))
+
+        # --- Interleave lbls
         if lbl is not None:
-            lbls = montage(np.stack(lbls), N=N)
+            lbls = interleave(np.stack(lbls))
 
         return dats, lbls
 

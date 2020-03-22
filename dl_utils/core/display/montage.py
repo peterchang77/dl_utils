@@ -46,3 +46,28 @@ def montage(arr, N=None, squeeze=True):
         M = M[..., 0]
 
     return M
+
+def interleave(arrs, **kwargs):
+    """
+    Method to interleave a 5D array 
+
+    :params
+
+      (np.ndarray) arrs : stack of 4D arrays to interleave
+
+    """
+    # --- Create 5D volume
+    if arrs.ndim == 4:
+        arrs = np.expand_dims(arrs, axis=-1)
+
+    # --- Create montages
+    z = arrs.shape[1]
+    mnts = [montage(arrs[:, i], **kwargs) for i in range(z)]
+
+    s = mnts[0].shape
+    M = np.empty((s[0] * z, s[1], s[2]), dtype=arrs.dtype)
+
+    for i in range(z):
+        M[i::s[1]] = mnts[i]
+
+    return M
