@@ -1,7 +1,7 @@
 import os, yaml, numpy as np, pandas as pd, tarfile
 from .query import find_matching_files
 from . import funcs
-from ..general import printd, printp
+from ..general import printd, printp, unarchive, set_paths, get_paths
 from ..display import interleave
 
 # ===================================================================
@@ -1038,32 +1038,38 @@ class DB():
             os.makedirs(os.path.dirname(fname), exist_ok=True)
             df.to_csv(fname)
 
-    def compress(self, cols, mask=None, include_db=False, fname='./data.tar.gz'):
+    def archive(self, cols, fname='./data.tar', mask=None, include_db=False, compress=False):
         """
-        Method to create *.tar.gz archive of the specified column(s)
+        Method to create *.tar(.gz) archive of the specified column(s)
 
         """
         # --- Filter to ensure all provided columns exist as fnames
         for col in cols:
             assert col in self.fnames
 
-        with tarfile.open(fname, 'w:gz', dereference=True) as t:
+        # --- Determine compression
+        if compress:
+            mode = 'w:gz'
+            if fname[-2:] != 'gz':
+                fname = fname + '.gz'
+        else:
+            mode = 'w'
+
+        with tarfile.open(fname, mode, dereference=True) as tf:
 
             if include_db:
                 for fname in self.get_files().values():
-                    t.add(fname, arcname=fname.replace(self.paths['code'], ''))
+                    tf.add(fname, arcname=fname.replace(self.paths['code'], ''))
 
             for sid, fnames, header in self.cursor(mask=mask, status='Compressing | {:06d}'):
                 for col in cols:
                     if os.path.exists(fnames[col]):
-                        t.add(fnames[col], arcname=fnames[col].replace(self.paths['data'], ''))
+                        tf.add(fnames[col], arcname=fnames[col].replace(self.paths['data'], ''))
     
-    def decompress(self, tar, path=None):
+    def unarchive(self, tar, path=None):
         """
-        Method to decompress *.tar.gz archive (and sort into appropriate folders)
+        Method to unpack *.tar(.gz) archive (and sort into appropriate folders)
 
         """
         path = path or self.paths['data'] or '.'
-
-        with tarfile.open(tar, 'r:gz') as t:
-            t.extractall(path=path)
+        unarchive(tar, path)
