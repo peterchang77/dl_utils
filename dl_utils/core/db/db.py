@@ -149,16 +149,9 @@ class DB():
         self.set_files()
 
         # --- Update fnames
-        if self.paths['data'] != '' and update_fnames:
-
-            fnames = self.fnames_expand_single(index=0)
-            n = len(self.paths['data'])
-
+        if update_fnames:
             for col in self.fnames:
-                sform = self.sform.get(col, '{curr}')
-                if '{root}' not in sform:
-                    if self.paths['data'] in fnames[col]:
-                        self.fnames[col] = self.fnames_expand(cols=[col]).applymap(lambda x : x[n:])
+                self.update_fnames(col, self.sform.get(col, '{curr}'))
 
     def detect_id(self):
         """
@@ -601,6 +594,92 @@ class DB():
                         ext=ext) 
 
         self.sform.update(sform)
+
+    def update_sform(self, sform='{root}{curr}'):
+        """
+        Method to update sform for specified columns and corresponding fnames
+
+        :params
+
+          (dict) sform = {
+                    [col-00]: [sform-pattern],
+                    [col-01]: [sform-pattern],
+                    [col-02]: [sform-pattern], ... }
+
+        NOTE: if str is provided, sform pattern is propogated to all columns
+
+        """
+        if type(sform) is str:
+            sform = {k: sform for k in self.fnames}
+
+        if type(sform) is not dict:
+            printd('ERROR, sform is not formatted correctly')
+            return
+
+        for col, s in sform.items():
+            self.update_fnames(col, s)
+
+        self.sform.update(sform)
+
+    def update_fnames(self, col, sform):
+        """
+        Method to update fnames column based on provided sform:
+
+          (1) Fully expand current fnames
+          (2) Recompress fnames based on new sform
+
+        NOTE: this method is intended as an internal function; it does not update sform
+        after manipulation of fnames. The recommended approach for most sform updates
+        is the self.update_sform(...) method.
+
+        """
+        assert col in self.fnames
+
+        # --- Recompress fnames 
+        root = self.paths['data']
+        loc_r = sform.find('{root}')
+        loc_c = sform.find('{curr}')
+        loc_s = sform.find('{sid}')
+
+        # --- CONDITION: all fnames inferred from sform alone (no '{curr}') 
+        if (loc_c == -1):
+            self.fnames[col] = ''
+            return
+
+        # --- CONDITION: only '{curr}' without existing self.sform entry
+        if sform == '{curr}' and col not in self.sform:
+            return
+
+        # --- Expand fnames (all other conditions require at least this)
+        self.fnames[col] = self.fnames_expand(cols=col)
+
+        # --- CONDITION: only '{curr}' with existing self.sform entry
+        if sform == '{curr}':
+            return
+
+        # --- CONDITION: no '{sid}' and '{curr}' at the end e.g. '{root}{curr}'
+        if (loc_s == -1) and (sform[-6:] == '{curr}'):
+            prefix = sform[:-6].format(root=root)
+            if prefix in self.fnames[col].iloc[0]:
+                n = len(prefix)
+                self.fnames[col] = self.fnames[col].apply(lambda x : x[n:])
+
+            return
+
+        # --- ELSE: Create generic function for all alternate cases
+        prefix, suffix = sform.split('{curr}')
+
+        def recompress(f, sid):
+            """
+            Method to remove formatted prefix / suffix from string f
+
+            """
+            f = f.replace(prefix.format(root=root, sid=sid), '')
+            f = f.replace(suffix.format(root=root, sid=sid), '')
+
+            return f
+            
+        self.fnames[col] = [recompress(f, s) for f, s in zip(self.fnames[col], self.fnames.index)]
 
     # ===================================================================
     # DATA AUGMENTATION 
