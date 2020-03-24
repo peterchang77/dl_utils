@@ -1,5 +1,5 @@
 import os, yaml, tarfile
-from .general import printp
+from .printer import printp
 
 # ===============================================================================
 # PATH MANIPULATION 
@@ -30,13 +30,13 @@ def save_configs(configs, name, dirname='.jarvis'):
     with open(fname, 'w') as y:
         yaml.dump(configs.to_dict(), y, sort_keys=False)
 
-def set_paths(context_id, paths):
+def set_paths(project_id, paths):
     """
     Method to update global $HOME/.jarvis/paths.yml with new paths
 
     :params
 
-      (str) context_id
+      (str) project_id 
       (str) paths
 
     """
@@ -47,24 +47,34 @@ def set_paths(context_id, paths):
     if type(paths) is str:
         paths = {'code': paths, 'data': paths}
 
-    configs['context_id'] = {**{'code': None, 'data': None}, **paths}
+    assert type(paths) is dict
+
+    remove_slash = lambda x : x[:-1] if x[-1] == '/' else x
+    paths = {**{'code': '', 'data': ''}, **paths}
+    paths = {k: remove_slash(v) for k, v in paths.items()}
+
+    configs[project_id] = paths
 
     # --- Save
     save_configs(configs, 'paths')
 
-def get_paths(context_id):
+    return configs[project_id] 
+
+def get_paths(project_id):
     """
     Method to read global $HOME/.jarvis/paths.yml
 
     :params
 
-      (str) context_id : if None, return all paths
+      (str) project_id : if None, return all paths
 
     """
     # --- Load
     configs = load_configs('paths')
 
-    return {**{'code': None, 'data': None}, **configs.get(context_id, {})}
+    # --- TODO: determine project_id based on ENV var
+
+    return {**{'code': None, 'data': None}, **configs.get(project_id, {})}
 
 # ===============================================================================
 # TAR TOOLS 

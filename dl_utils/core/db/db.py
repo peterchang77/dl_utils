@@ -1,7 +1,8 @@
 import os, yaml, numpy as np, pandas as pd, tarfile
 from .query import find_matching_files
 from . import funcs
-from ..general import printd, printp, unarchive, set_paths, get_paths
+from ..general import printd, printp
+from ..general import tools as jtools
 from ..display import interleave
 
 # ===================================================================
@@ -36,18 +37,17 @@ class DB():
           (1) query dictionary 
           (2) CSV file (with existing data)
           (3) YML file
-          (4) shell environment variables
 
         """
-        # --- Load custom functions
-        self.load_func = kwargs.pop('load', None) 
-
-        # --- Parse args
-        self.parse_args(*args, **kwargs)
+        # --- Initialize default values
+        self.init_defaults(*args, **kwargs)
 
         # --- Load YML and CSV files
         self.load_yml()
         self.load_csv(**kwargs)
+
+        # --- Set default paths and files locations
+        self.set_id(update_fnames=False)
 
         # --- Refresh
         self.init_fdefs()
@@ -55,25 +55,49 @@ class DB():
 
     def init_custom(self, *args, **kwargs): pass
 
+    def init_defaults(self, *args, **kwargs):
+        """
+        Method to initialize default DB() configurations
+
+        """
+        DEFAULTS = {
+            '_id': {'project': None, 'version': None},
+            'paths': {'data': '', 'code': ''},
+            'files': {'csv': './csvs/db-all.csv.gz', 'yml': './ymls/db-all.yml'},
+            'query': {},
+            'sform': {},
+            'fdefs': []}
+
+        args_, files, paths = self.parse_args(*args, **kwargs)
+
+        # --- Initialize default values
+        configs = {**DEFAULTS, **args_, **kwargs} 
+
+        if 'root' in configs['query']:
+            paths['data'] = configs['query'].pop('root')
+
+        # --- Initialize default paths and files
+        configs['paths'] = {**DEFAULTS['paths'], **paths, **kwargs.get('paths', {})}
+        configs['files'] = {**DEFAULTS['files'], **files, **kwargs.get('files', {})}
+
+        # --- Attributes to serialize in self.to_yml(...) 
+        self.ATTRS = ['_id', 'files', 'query', 'sform', 'fdefs']
+
+        # --- Set attributes 
+        for attr in self.ATTRS:
+            setattr(self, attr, configs[attr])
+
+        self.paths = configs['paths']
+
     def parse_args(self, *args, **kwargs):
         """
         Method to parse arguments into final kwargs dict
 
         """
-        DEFAULTS = {
-            'paths': {'data': '', 'code': ''},
-            'files': {'csv': None, 'yml': None},
-            'query': {},
-            'sform': {},
-            'fdefs': []}
-
         # --- Extract values from args 
         files = {}
         paths = {}
         args_ = {}
-
-        files['csv'] = kwargs.get('csv', None)
-        files['yml'] = kwargs.get('yml', None)
 
         for arg in args:
             if type(arg) is str:
@@ -93,62 +117,77 @@ class DB():
             elif type(arg) is list:
                 args_['fdefs'] = arg
 
-        # --- Extract values from ENV 
-        environ = {}
-        for key in ['data', 'code']:
-            ENV = 'DL_PATHS_{}'.format(key.upper())
-            if ENV in os.environ:
-                environ[key] = os.environ[ENV]
+        for k in ['csv', 'yml']:
+            if k in kwargs:
+                files[k] = kwargs[k]
 
-        # --- Initialize default values
-        configs = {**DEFAULTS, **args_, **kwargs} 
+        # --- Load custom functions
+        self.load_func = kwargs.pop('load', None) 
 
-        if 'root' in configs['query']:
-            paths['data'] = configs['query'].pop('root')
+        return args_, files, paths
 
-        # --- Initialize default paths and files
-        configs['paths'] = {**DEFAULTS['paths'], **paths, **kwargs.get('paths', {}), **environ}
-        configs['files'] = {**DEFAULTS['files'], **files, **kwargs.get('files', {})}
-
-        # --- Attributes to serialize in self.to_yml(...) 
-        self.ATTRS = ['paths', 'files', 'query', 'sform', 'fdefs']
-
-        # --- Save
-        for attr in self.ATTRS:
-            setattr(self, attr, configs[attr])
-
-        # --- Set default paths and files locations
-        self.set_paths(update_fnames=False)
-
-    def set_paths(self, paths=None, update_fnames=True):
+    def set_id(self, project_id=None, version_id=None, paths=None, update_fnames=True):
         """
-        Method to set self.paths and remove prefix from fnames
+        Method to set project_id of database and remove prefix from fnames
 
         """
-        paths = paths or {}
-        assert type(paths) in [str, dict]
+        pid, vid = self.detect_id()
+        project_id = project_id or pid
+        version_id = version_id or vid 
 
-        if type(paths) is str:
-            paths = {'data': paths}
+        # --- Get paths
+        if project_id is not None:
+            paths = jtools.get_paths(project_id) if paths is None else \
+                jtools.set_paths(project_id, paths)
 
-        paths = {**self.paths, **paths} 
-        paths = {k: os.path.abspath(p) if p != '' else '' for k, p in paths.items()}
+        # --- Set paths attribute in current object
+        self.paths = paths or self.paths
+        if version_id is not None and self.paths['code'] != '':
+            self.paths['code'] = '{}/{}'.format(self.path['code'], version_id)
 
-        if 'data' in paths and update_fnames:
+        # --- Update self.files
+        self.set_files()
+
+        # --- Update fnames
+        if self.paths['data'] != '' and update_fnames:
 
             fnames = self.fnames_expand_single(index=0)
-            n = len(paths['data'])
+            n = len(self.paths['data'])
 
             for col in self.fnames:
                 sform = self.sform.get(col, '{curr}')
                 if '{root}' not in sform:
-                    if paths['data'] in fnames[col]:
+                    if self.paths['data'] in fnames[col]:
                         self.fnames[col] = self.fnames_expand(cols=[col]).applymap(lambda x : x[n:])
 
-        self.paths = paths
+    def detect_id(self):
+        """
+        Method to attempt auto-detection of project_id based on:
+        
+          (1) self._id attribute
+          (2) Current file path
 
-        if 'code' in paths:
-            self.set_files()
+        """
+        project_id = self._id['project'] 
+        version_id = self._id['version'] 
+
+        if project_id is None:
+
+            cwd = os.getcwd()
+            configs = jtools.load_configs('paths')
+
+            for pid, paths in configs.items():
+                if paths['code'] in cwd or paths['data'] in cwd:
+                    project_id = pid
+                    break
+
+        if version_id is None and project_id is not None:
+
+            suffix = cwd.split(project_id)[1][1:].split('/')
+            if suffix[0][0] == 'v':
+                version_id = suffix[0]
+
+        return project_id, version_id 
 
     def set_files(self, files=None):
         """
@@ -156,39 +195,30 @@ class DB():
 
         :params
 
-          (dict) files : {'csv': ... or None, 'yml': ... or None}, OR
-          (str)  files : /path/to/db.csv.gz or /path/to/db.yml
+          (dict) files : {'csv': ..., 'yml': ...}, OR
+          (str)  files : inferred string pattern e.g. 'db-all' 
 
         """
         if type(files) is str:
-
-            # --- Extract paths, files from provided YML or CSV file
-            suffix = '/'.join(files.split('/')[-2:])
-            prefix = '/'.join(files.split('/')[:-2])
-
             files = {
-                'csv': '/' + suffix.replace('yml', 'csv'),
-                'yml': '/' + suffix.replace('csv', 'yml')}
-
-            if files['csv'][-2:] != 'gz':
-                files['csv'] += '.gz'
-
-            self.set_paths({'code': prefix}, update_fnames=False)
+                'csv': '/csvs/{}.csv.gz'.format(files),
+                'yml': '/ymls/{}.yml'.format(files)}
 
         else:
             files = {**self.files, **(files or {})} 
 
-        if self.paths['code'] != '':
-            self.files['csv'] = files['csv'] or '/csvs/db-all.csv.gz'
-            self.files['yml'] = files['yml'] or '/ymls/db-all.yml'
+        # --- Expand and replace paths
+        files = {k: os.path.abspath(v) for k, v in files.items()}
+        files = {k: v.replace(self.paths['code'], '') for k, v in files.items()}
+
+        self.files = files
 
     def get_files(self):
         """
         Method to get full file paths
 
         """
-        return {k: '{}{}'.format(self.paths['code'], v) if v is not None else None 
-            for k, v in self.files.items()}
+        return {k: '{}{}'.format(self.paths['code'], v) for k, v in self.files.items()}
 
     # ===================================================================
     # YML | LOAD
@@ -1072,4 +1102,4 @@ class DB():
 
         """
         path = path or self.paths['data'] or '.'
-        unarchive(tar, path)
+        jtools.unarchive(tar, path)
