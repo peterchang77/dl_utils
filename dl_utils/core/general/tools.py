@@ -10,7 +10,7 @@ def load_configs(name, dirname='.jarvis'):
     Method to load Jarvis configuration file
 
     """
-    fname = '{}/{}/{}'.format(os.environ.get('HOME', '.'), dirname, name)
+    fname = '{}/{}/{}.yml'.format(os.environ.get('HOME', '.'), dirname, name)
 
     configs = {}
     if os.path.exists(fname):
@@ -24,11 +24,11 @@ def save_configs(configs, name, dirname='.jarvis'):
     Method to save Jarvis configuration file
 
     """
-    fname = '{}/{}/{}'.format(os.environ.get('HOME', '.'), dirname, name)
+    fname = '{}/{}/{}.yml'.format(os.environ.get('HOME', '.'), dirname, name)
 
     os.makedirs(os.path.dirname(fname), exist_ok=True)
     with open(fname, 'w') as y:
-        yaml.dump(configs.to_dict(), y, sort_keys=False)
+        yaml.dump(configs, y, sort_keys=False)
 
 def set_paths(project_id, paths):
     """
