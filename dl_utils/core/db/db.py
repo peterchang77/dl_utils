@@ -44,10 +44,8 @@ class DB():
 
         # --- Load YML and CSV files
         self.load_yml()
-        self.load_csv(**kwargs)
-
-        # --- Set default paths and files locations
         self.set_id(update_fnames=False)
+        self.load_csv(**kwargs)
 
         # --- Refresh
         self.init_fdefs()
@@ -146,6 +144,8 @@ class DB():
             self.paths['code'] = '{}/{}'.format(self.path['code'], version_id)
 
         # --- Update self.files
+        self._id['project'] = project_id
+        self._id['version'] = version_id 
         self.set_files()
 
         # --- Update fnames
@@ -172,13 +172,14 @@ class DB():
             for pid, paths in configs.items():
                 if paths['code'] in cwd or paths['data'] in cwd:
                     project_id = pid
+
+                    if version_id is None and paths['code'] in cwd:
+
+                        suffix = cwd.split(paths['code'])[1][1:].split('/')
+                        if suffix[0][0] == 'v':
+                            version_id = suffix[0]
+
                     break
-
-        if version_id is None and project_id is not None:
-
-            suffix = cwd.split(project_id)[1][1:].split('/')
-            if suffix[0][0] == 'v':
-                version_id = suffix[0]
 
         return project_id, version_id 
 
