@@ -28,7 +28,7 @@ def save_configs(configs, name, dirname='.jarvis'):
 
     os.makedirs(os.path.dirname(fname), exist_ok=True)
     with open(fname, 'w') as y:
-        yaml.dump(configs, y, sort_keys=False)
+        yaml.dump(configs, y)
 
 def set_paths(project_id, paths):
     """
@@ -51,7 +51,7 @@ def set_paths(project_id, paths):
 
     remove_slash = lambda x : x[:-1] if x[-1] == '/' else x
     paths = {**{'code': '', 'data': ''}, **paths}
-    paths = {k: remove_slash(v) for k, v in paths.items()}
+    paths = {k: remove_slash(v) if v != '' else v for k, v in paths.items()}
 
     configs[project_id] = paths
 

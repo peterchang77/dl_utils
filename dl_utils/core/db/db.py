@@ -135,13 +135,26 @@ class DB():
 
         # --- Get paths
         if project_id is not None:
-            paths = jtools.get_paths(project_id) if paths is None else \
-                jtools.set_paths(project_id, paths)
+
+            # --- Replace empty self.paths
+            if paths is None:
+                paths = jtools.get_paths(project_id) 
+                for k in self.paths:
+                    if self.paths[k] == '':
+                        self.paths[k] = paths.get(k, '')
+
+            # --- Replace all self.paths
+            else:
+                paths = jtools.set_paths(project_id, paths)
+                self.paths = {**self.paths, **paths}
 
         # --- Set paths attribute in current object
-        self.paths = paths or self.paths
         if version_id is not None and self.paths['code'] != '':
-            self.paths['code'] = '{}/{}'.format(self.path['code'], version_id)
+            if not os.path.exists(self.paths['code']):
+                if self.paths['code'][-5:] == '/data':
+                    self.paths['code'] = '{}/{}/data'.format(self.paths['code'][:-5], version_id)
+                else:
+                    self.paths['code'] = '{}/{}'.format(self.paths['code'], version_id)
 
         # --- Update self.files
         self._id['project'] = project_id
@@ -158,26 +171,46 @@ class DB():
         Method to attempt auto-detection of project_id based on:
         
           (1) self._id attribute
-          (2) Current file path
+          (2) Loaded *.yml file if any 
+          (3) Current file path
+
+        NOTE: for version detection, the following dir structure is assumed:
+
+          * full path ==> {root}/[v][0-9]/data
+          * code path ==> {root}/data
 
         """
         project_id = self._id['project'] 
         version_id = self._id['version'] 
 
+        # --- Determine auto detect path to use
+        auto = self.get_files()['yml']
+        if not os.path.exists(auto):
+            auto = os.getcwd()
+
         if project_id is None:
 
-            cwd = os.getcwd()
             configs = jtools.load_configs('paths')
 
             for pid, paths in configs.items():
-                if paths['code'] in cwd or paths['data'] in cwd:
+
+                data = paths['data']
+                code = paths['code']
+                if code[-5:] == '/data':
+                    code = code[:-5]
+
+                if (code in auto and code != '') or (data in auto and data != ''):
                     project_id = pid
 
-                    if version_id is None and paths['code'] in cwd:
+                    # --- Attempt extraction of version
+                    if version_id is None and code in auto and code != auto:
 
-                        suffix = cwd.split(paths['code'])[1][1:].split('/')
-                        if suffix[0][0] == 'v':
-                            version_id = suffix[0]
+                        suffix = auto.split(code)[1][1:]
+                        if '/' in suffix:
+                            suffix = suffix.split('/')[0]
+                            if len(suffix) > 1:
+                                if suffix[0] == 'v' and suffix[1].isnumeric():
+                                    version_id = suffix
 
                     break
 
@@ -231,6 +264,12 @@ class DB():
 
             for attr, config in configs.items():
                 setattr(self, attr, config)
+
+            # --- Infer paths['code'] and files['yml'] 
+            fname = os.path.abspath(fname)
+            loc = fname.find(self.files['yml']) 
+            self.paths['code'] = fname[:loc]
+            self.files['yml'] = fname[loc:]
 
     # ===================================================================
     # CSV | LOAD and PREPARE
