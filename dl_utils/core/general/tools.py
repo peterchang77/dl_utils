@@ -76,6 +76,28 @@ def get_paths(project_id):
 
     return {**{'code': None, 'data': None}, **configs.get(project_id, {})}
 
+def code_path_version_add(code, version_id):
+    """
+    Method to intergrate version_id into code path
+
+    """
+    if code != '' and version_id is not None:
+        if not os.path.exists(code):
+            code = '{}/{}/data'.format(code[:-5], version_id) if code[-5:] == '/data' else \
+                '{}/{}'.format(code, version_id)
+
+    return code
+
+def code_path_version_sub(code, version_id):
+    """
+    Method to remove version_id from code path
+
+    """
+    if version_id in code:
+        code = code.replace('/{}'.format(version_id), '')
+
+    return code
+
 # ===============================================================================
 # TAR TOOLS 
 # ===============================================================================

@@ -145,16 +145,12 @@ class DB():
 
             # --- Replace all self.paths
             else:
+                paths['code'] = jtools.code_path_version_sub(self.paths['code'], version_id)
                 paths = jtools.set_paths(project_id, paths)
                 self.paths = {**self.paths, **paths}
 
         # --- Set paths attribute in current object
-        if version_id is not None and self.paths['code'] != '':
-            if not os.path.exists(self.paths['code']):
-                if self.paths['code'][-5:] == '/data':
-                    self.paths['code'] = '{}/{}/data'.format(self.paths['code'][:-5], version_id)
-                else:
-                    self.paths['code'] = '{}/{}'.format(self.paths['code'], version_id)
+        self.paths['code'] = jtools.code_path_version_add(self.paths['code'], version_id)
 
         # --- Update self.files
         self._id['project'] = project_id
@@ -174,21 +170,23 @@ class DB():
           (2) Loaded *.yml file if any 
           (3) Current file path
 
-        NOTE: for version detection, the following dir structure is assumed:
+        For version detection, the following dir structure is assumed:
 
           * full path ==> {root}/[v][0-9]/data
           * code path ==> {root}/data
+
+        NOTE: auto-detect should be used rarely (only when _id is not defined in *.yml)
 
         """
         project_id = self._id['project'] 
         version_id = self._id['version'] 
 
-        # --- Determine auto detect path to use
-        auto = self.get_files()['yml']
-        if not os.path.exists(auto):
-            auto = os.getcwd()
-
         if project_id is None:
+
+            # --- Determine auto detect path to use
+            auto = self.get_files()['yml']
+            if not os.path.exists(auto):
+                auto = os.getcwd()
 
             configs = jtools.load_configs('paths')
 
