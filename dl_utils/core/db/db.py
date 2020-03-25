@@ -1,8 +1,7 @@
 import os, yaml, numpy as np, pandas as pd, tarfile
 from .query import find_matching_files
 from . import funcs
-from ..general import printd, printp
-from ..general import tools as jtools
+from ..general import printd, printp, tools as jtools
 from ..display import interleave
 
 # ===================================================================
@@ -44,7 +43,6 @@ class DB():
 
         # --- Load YML and CSV files
         self.load_yml()
-        self.set_id(update_fnames=False)
         self.load_csv(**kwargs)
 
         # --- Refresh
@@ -61,7 +59,7 @@ class DB():
         DEFAULTS = {
             '_id': {'project': None, 'version': None},
             'paths': {'data': '', 'code': ''},
-            'files': {'csv': './csvs/db-all.csv.gz', 'yml': './ymls/db-all.yml'},
+            'files': {'csv': None, 'yml': None},
             'query': {},
             'sform': {},
             'fdefs': []}
@@ -86,6 +84,9 @@ class DB():
             setattr(self, attr, configs[attr])
 
         self.paths = configs['paths']
+
+        # --- Autodetect and set defaults
+        self.autodetect()
 
     def parse_args(self, *args, **kwargs):
         """
@@ -124,99 +125,71 @@ class DB():
 
         return args_, files, paths
 
-    def set_id(self, project_id=None, version_id=None, paths=None, update_fnames=True):
+    def autodetect(self):
         """
-        Method to set project_id of database and remove prefix from fnames
+        Method to autodetect attributes and set defaults
 
         """
-        pid, vid = self.detect_id()
-        project_id = project_id or pid
-        version_id = version_id or vid 
+        # --- Choose path for inference (active path)
+        path = ''
+        for ext in ['yml', 'csv']:
+            if self.files[ext] is not None:
+                path = self.get_files()[ext]
+                break
 
-        # --- Get paths
-        if project_id is not None:
+        # --- Autodetect
+        project_id, version_id, paths, files = jtools.autodetect(path, pattern='db*')
 
-            # --- Replace empty self.paths
-            if paths is None:
-                paths = jtools.get_paths(project_id) 
-                for k in self.paths:
-                    if self.paths[k] == '':
-                        self.paths[k] = paths.get(k, '')
+        # --- Overwrite any empty attributes
+        self._id['project'] = self._id['project'] or project_id
+        self._id['version'] = self._id['version'] or version_id 
 
-            # --- Replace all self.paths
-            else:
-                paths['code'] = jtools.code_path_version_sub(self.paths['code'], version_id)
-                paths = jtools.set_paths(project_id, paths)
-                self.paths = {**self.paths, **paths}
+        # --- Update paths (any currently set to '')
+        for key in ['code', 'data']:
+            if self.paths[key] == '' and paths[key] != '':
+                self.paths[key] = paths[key]
 
-        # --- Set paths attribute in current object
-        self.paths['code'] = jtools.code_path_version_add(self.paths['code'], version_id)
-
-        # --- Update self.files
-        self._id['project'] = project_id
-        self._id['version'] = version_id 
+        # --- Update files (default is './db-all*')
+        self.files['yml'] = self.files['yml'] or files['yml'] or './ymls/db-all.yml'
+        self.files['csv'] = self.files['csv'] or files['csv'] or './csvs/db-all.csv.gz'
         self.set_files()
+
+    def load_paths(self):
+        """
+        Method to load paths from project_id if not already existing 
+
+        """
+        if self.paths['code'] != '' and self.paths['data'] != '':
+            return
+
+        # --- Load paths from project_id, version_id
+        paths = jtools.get_paths(self._id['project'], self._id['version']) 
+
+        # --- Update paths (any currently set to '')
+        for key in ['code', 'data']:
+            if self.paths[key] == '' and paths[key] != '':
+                self.paths[key] = paths[key]
+
+    def save_paths(self, paths=None, project_id=None, version_id=None, update_fnames=False):
+        """
+        Method to save paths (either in self.paths or newly provided paths kwarg)
+
+        """
+        # --- Prepare paths
+        paths = paths or self.paths
+        project_id = project_id or self._id['project']
+        version_id = version_id or self._id['version']
+
+        self.paths = jtools.set_paths(paths, project_id, version_id)
 
         # --- Update fnames
         if update_fnames:
             for col in self.fnames:
                 self.update_fnames(col, self.sform.get(col, '{curr}'))
 
-    def detect_id(self):
-        """
-        Method to attempt auto-detection of project_id based on:
-        
-          (1) self._id attribute
-          (2) Loaded *.yml file if any 
-          (3) Current file path
-
-        For version detection, the following dir structure is assumed:
-
-          * full path ==> {root}/[v][0-9]/data
-          * code path ==> {root}/data
-
-        NOTE: auto-detect should be used rarely (only when _id is not defined in *.yml)
-
-        """
-        project_id = self._id['project'] 
-        version_id = self._id['version'] 
-
-        if project_id is None:
-
-            # --- Determine auto detect path to use
-            auto = self.get_files()['yml']
-            if not os.path.exists(auto):
-                auto = os.getcwd()
-
-            configs = jtools.load_configs('paths')
-
-            for pid, paths in configs.items():
-
-                data = paths['data']
-                code = paths['code']
-                if code[-5:] == '/data':
-                    code = code[:-5]
-
-                if (code in auto and code != '') or (data in auto and data != ''):
-                    project_id = pid
-
-                    # --- Attempt extraction of version
-                    if version_id is None and code in auto and code != auto:
-
-                        suffix = auto.split(code)[1][1:]
-                        if '/' in suffix:
-                            suffix = suffix.split('/')[0]
-                            if len(suffix) > 1:
-                                if suffix[0] == 'v' and suffix[1].isnumeric():
-                                    version_id = suffix
-
-                    break
-
-        return project_id, version_id 
-
     def set_files(self, files=None):
         """
-        Method to set self.files
+        Method to set new files to self.files
 
         :params
 
@@ -233,10 +206,10 @@ class DB():
             files = {**self.files, **(files or {})} 
 
         # --- Expand and replace paths
-        files = {k: os.path.abspath(v) for k, v in files.items()}
-        files = {k: v.replace(self.paths['code'], '') for k, v in files.items()}
+        trim = lambda x : os.path.abspath(x).replace(self.paths['code'], '')
 
-        self.files = files
+        self.files['yml'] = trim(files['yml']) 
+        self.files['csv'] = trim(files['csv']) 
 
     def get_files(self):
         """
@@ -263,11 +236,7 @@ class DB():
             for attr, config in configs.items():
                 setattr(self, attr, config)
 
-            # --- Infer paths['code'] and files['yml'] 
-            fname = os.path.abspath(fname)
-            loc = fname.find(self.files['yml']) 
-            self.paths['code'] = fname[:loc]
-            self.files['yml'] = fname[loc:]
+            self.load_paths()
 
     # ===================================================================
     # CSV | LOAD and PREPARE
@@ -1031,7 +1000,7 @@ class DB():
     # CREATE SUMMARY DB 
     # ===================================================================
 
-    def create_summary(self, fdefs, fnames=[], header=[], folds=5, yml='./ymls/db.yml', **kwargs):
+    def create_summary(self, fdefs, fnames=[], header=[], folds=5, name='db-sum', **kwargs):
         """
         Method to generate summary training stats via self.apply(...) operation
 
@@ -1059,12 +1028,7 @@ class DB():
         df = df.join(mm)
 
         # --- Create new DB() object
-        db = DB(fnames=df[fnames], header=df[header])
-        
-        # --- Serialize
-        db.set_paths(self.paths, update_fnames=False)
-        db.set_files(yml)
-        db.sform = {k: self.sform[k] for k in fnames if k in self.sform}
+        db = self.new_db(name=name, fnames=df[fnames], header=df[header])
         db.to_yml()
 
         # --- Final output
@@ -1085,6 +1049,24 @@ class DB():
     # ===================================================================
     # EXTRACT and SERIALIZE 
     # ===================================================================
+
+    def new_db(self, name, **kwargs):
+        """
+        Method to create new empty DB() object with same attributes as current object
+
+        """
+        kwargs.update({k: getattr(self, k) for k in self.ATTRS})
+
+        # --- Initialize paths, files
+        kwargs['paths'] = self.paths
+        kwargs['files'] = {
+                'csv': '/csvs/{}.csv.gz'.format(name),
+                'yml': '/ymls/{}.yml'.format(name)}
+
+        if 'fnames' in kwargs:
+            kwargs['sform'] = {k: v for k, v in kwargs['sform'].items() if k in kwargs['fnames']}
+
+        return DB(**kwargs)
 
     def to_json(self, dat, lbl=None, hdr=None, prefix='local://', max_rows=None, exists_only=True):
         """
