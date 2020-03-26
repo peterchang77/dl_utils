@@ -54,7 +54,7 @@ def set_paths(paths, project_id, version_id=None):
     paths = {k: remove_slash(v or '/') for k, v in paths.items()}
 
     # --- Version
-    paths['code'] = jtools.path_sub_version(self.paths['code'], version_id)
+    paths['code'] = path_sub_version(paths['code'], version_id)
 
     configs[project_id] = paths
 

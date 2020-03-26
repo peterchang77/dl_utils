@@ -1,4 +1,4 @@
-import os, yaml, numpy as np, pandas as pd, tarfile
+import os, glob, yaml, numpy as np, pandas as pd, tarfile
 from .query import find_matching_files
 from . import funcs
 from ..general import printd, printp, tools as jtools
@@ -1167,12 +1167,13 @@ class DB():
             os.makedirs(os.path.dirname(fname), exist_ok=True)
             df.to_csv(fname)
 
-    def archive(self, cols, fname='./data.tar', mask=None, include_db=False, compress=False):
+    def archive(self, cols=None, fname='./tars/data.tar', mask=None, include_db=True, include_code=True, compress=False):
         """
         Method to create *.tar(.gz) archive of the specified column(s)
 
         """
         # --- Filter to ensure all provided columns exist as fnames
+        cols = cols or list(self.fnames.columns)
         for col in cols:
             assert col in self.fnames
 
@@ -1184,16 +1185,28 @@ class DB():
         else:
             mode = 'w'
 
+        # --- Make directory
+        os.makedirs(os.path.dirname(fname), exist_ok=True)
+        done = set() 
+
         with tarfile.open(fname, mode, dereference=True) as tf:
 
-            if include_db:
+            if include_code:
+                for ext in ['yml', 'csv']:
+                    root = os.path.dirname(self.get_files()[ext])
+                    fnames = glob.glob('{}/*.{}*'.format(root, ext))
+                    for fname in fnames:
+                        tf.add(fname, arcname=fname.replace(self.paths['code'], ''))
+
+            elif include_db:
                 for fname in self.get_files().values():
                     tf.add(fname, arcname=fname.replace(self.paths['code'], ''))
 
             for sid, fnames, header in self.cursor(mask=mask, status='Compressing | {:06d}'):
                 for col in cols:
-                    if os.path.exists(fnames[col]):
+                    if os.path.exists(fnames[col]) and fnames[col] not in done:
                         tf.add(fnames[col], arcname=fnames[col].replace(self.paths['data'], ''))
+                        done.add(fnames[col])
     
     def unarchive(self, tar, path=None):
         """
