@@ -111,14 +111,14 @@ def load(fname, infos=None, **kwargs):
     with h5py.File(fname, 'r') as f:
 
         # --- Extract data
-        data = extract_data(f, infos)
+        data = extract_data(f['data'], infos)
 
         # --- Extract meta
         meta = {'affine': f.attrs['affine']}
 
     return data, meta
 
-def extract_data(f, infos):
+def extract_data(data, infos):
     """
     Method to parse infos dictionary into slices
 
@@ -126,10 +126,10 @@ def extract_data(f, infos):
     infos = check_infos(infos)
 
     if infos is None:
-        return f['data'][:]
+        return data[:]
 
     # --- Create shapes / points 
-    dshape = np.array(f['data'].shape[:3])
+    dshape = np.array(data.shape[:3])
     points = np.array(infos['point']) * (dshape - 1) 
     points = np.round(points)
 
@@ -148,7 +148,7 @@ def extract_data(f, infos):
     slices = [tuple(s.astype('int')) if i > 0 else (0, d) for s, i, d in zip(slices, shapes, dshape)] 
     slices = [slice(s[0], s[1]) for s in slices]
 
-    data = f['data'][slices[0], slices[1], slices[2]]
+    data = data[slices[0], slices[1], slices[2]]
 
     # --- Pad array if needed
     if padval.any():

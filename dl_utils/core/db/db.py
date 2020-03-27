@@ -771,7 +771,7 @@ class DB():
 
         return {**fnames, **header} 
 
-    def cursor(self, mask=None, indices=None, split=None, splits=None, status='Iterating | {:06d}', verbose=True, flush=False, **kwargs):
+    def cursor(self, mask=None, indices=None, split=None, splits=None, drop_duplicates=False, subset=None, status='Iterating | {:06d}', verbose=True, flush=False, **kwargs):
         """
         Method to create Python generator to iterate through dataset
         
@@ -796,6 +796,13 @@ class DB():
             r, status = self.create_splits(split, splits, df.shape[0], status)
             df = df.iloc[r]
 
+        # --- Expand fnames
+        df[fcols] = self.fnames_expand(cols=fcols)
+
+        # --- Drop duplicates
+        if drop_duplicates:
+            df = df.drop_duplicates(subset=subset or fcols)
+
         for tups in df.itertuples():
 
             if verbose:
@@ -804,8 +811,6 @@ class DB():
 
             fnames = {k: t for k, t in zip(fcols, tups[1:1+fsize])}
             header = {k: t for k, t in zip(hcols, tups[1+fsize:])}
-
-            fnames = self.fnames_expand_single(sid=tups[0], fnames=fnames)
 
             yield tups[0], fnames, header
 
@@ -1202,7 +1207,7 @@ class DB():
                 for fname in self.get_files().values():
                     tf.add(fname, arcname=fname.replace(self.paths['code'], ''))
 
-            for sid, fnames, header in self.cursor(mask=mask, status='Compressing | {:06d}'):
+            for sid, fnames, header in self.cursor(mask=mask, drop_duplicates=True, subset=cols, status='Compressing | {:06d}'):
                 for col in cols:
                     if os.path.exists(fnames[col]) and fnames[col] not in done:
                         tf.add(fnames[col], arcname=fnames[col].replace(self.paths['data'], ''))
