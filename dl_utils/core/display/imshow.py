@@ -37,11 +37,11 @@ def imshow(dat, lbl=None, radius=1, vm=None, title=None, figsize=(7, 7)):
       (int) vm[1] : upper range of visualized values
 
     """
-    x = montage(dat)
-    m = montage(lbl)
+    x = montage(dat)[0]
 
     # --- Overlay if lbl also provided
-    if m is not None:
+    if lbl is not None:
+        m = montage(lbl)[0]
         if m.max() > 0:
 
             perim = lambda msk, radius : ndimage.binary_dilation(msk, iterations=radius) ^ (msk > 0)
