@@ -541,7 +541,7 @@ class DB():
         self.fnames = pd.concat(fnames, axis=0)
         self.header = pd.concat(header, axis=0)
 
-    def init_sform(self, subdirs=None, json=[], cols=None):
+    def init_sform(self, subdirs=None, json=[], cols=None, proc='/proc/'):
         """
         Method to initialize default sform based of current fnames columns
 
@@ -585,7 +585,7 @@ class DB():
 
                 if base == 'dcm':
 
-                    sform[col] = '{root}/proc/dcm/{sid}/'
+                    sform[col] = '{root}%sdcm/{sid}/' % proc
 
                 else:
 
@@ -593,8 +593,9 @@ class DB():
                     ext = 'json' if col.split('-')[0] in json else 'hdf5'
 
                     # --- Create sform
-                    sform[col] = '{{root}}/proc/{subdir}/{{sid}}/{base}.{ext}'.format(
+                    sform[col] = '{{root}}{proc}{subdir}/{{sid}}/{base}.{ext}'.format(
                         root='root',
+                        proc=proc,
                         subdir=subdir,
                         sid='sid',
                         base=base,
